@@ -14,26 +14,28 @@ const config = {
 
 ll.exports((f) => (fs.readFileSync(f).toString('base64')), "SparkAPIEx", "toBase64");
 
-const replaceVars = (str, data) => str.replace(/\${(\w+)}/g, (_, k) => data[k] ?? '');
-spark.on('message.group.normal',async (pack, reply) => {
+spark.on('message.group.normal', onMessage);
+spark.on('message.private.friend', onMessage);
+
+async function onMessage(pack, reply) {
     const textMsg = toTextMsg(pack.message);
-    if (!((pack.group_id === config.QQChat || config.QQChat === null)
+    if (!((config.QQChat === null || pack?.group_id === config.QQChat)
         && config.AdminList.has(pack.user_id - 0)
         && pack.message.length !== 0
         && textMsg.startsWith("/debug")
     )) return;
-  
+
     const replyId = (pack.message.find(t => t.type === 'reply'))?.data?.id ?? null;
     const parse = parseCmd(textMsg);
 
     if (parse.has("debugdata")) {
         reply(JSON.stringify(Object.fromEntries(parse), null, 4));
     };
-  
+
     if (parse.has("reply") && replyId !== null) {
         reply(JSON.stringify((await spark.QClient.getMsg(replyId)), null, 4));
     };
-  
+
     if (parse.has("msgdata")) {
         if (!parse.has("sendmsg")) reply(JSON.stringify(pack, null, 4));
     };
@@ -44,7 +46,7 @@ spark.on('message.group.normal',async (pack, reply) => {
         if (parse.has("file2base64")) sendmsg = repFile2base64(sendmsg);
         reply(parseCQString.parse(sendmsg));
     };
-});
+}
 
 function parseCmd(str) {
     const args = new Map();
@@ -53,7 +55,7 @@ function parseCmd(str) {
         if (eq === -1) args.set(m.slice(2), null);
         else {
             let val = m.slice(eq + 1);
-            if ((val[0] === '"' && val[val.length-1] === '"') || (val[0] === "'" && val[val.length-1] === "'")) val = val.slice(1, -1);
+            if ((val[0] === '"' && val[val.length - 1] === '"') || (val[0] === "'" && val[val.length - 1] === "'")) val = val.slice(1, -1);
             args.set(m.slice(2, eq), val);
         }
     });
