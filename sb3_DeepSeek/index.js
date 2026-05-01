@@ -9,7 +9,7 @@ const config = {
     // 普通用户建议只修改 key
     // 如果你是高级用户，可以通过修改下面三个项来达到接入其他平台AI的目的
     // 当然前提是请求和返回要跟ds api一致
-  
+
     name: "deepseek-chat", // 请求的模型名称
     key: "sk-00000000000000000000000000000000", // 请求密钥
     url: "https://api.deepseek.com/v1/chat/completions", // 请求的ai端点
@@ -18,7 +18,7 @@ const config = {
     // 设置单次对话最大使用的token数
     // 值过低可能会导致对话被突然从中间截断
     maxTokens: 200,
-  
+
     // === 模式设置 === //
     // 设置响应的模式，可在下面列表内选一个数字填入：
     // 0: 处理每一条  || 处理每一条收到的信息
@@ -103,7 +103,7 @@ spark.on('message.private.friend', async (pack) => {
 // 群聊
 spark.on('message.group.normal', async (pack) => {
     if (!config.group.has("all") && !config.group.has(pack.group_id)) return;
-  
+
     let msg = await formatMsgAsync(pack.message, pack);
 
     // debug
@@ -113,8 +113,8 @@ spark.on('message.group.normal', async (pack) => {
         if (typeof value === 'bigint') return value.toString();
         return value;
     }, 4));*/
-    
-    switch(config.mode) {
+
+    switch (config.mode) {
         case 0: break;
         case 1:
             if (!pack.message.some(i => (i.type === "at" && i.data.qq == 3911773729))) return;
@@ -124,36 +124,36 @@ spark.on('message.group.normal', async (pack) => {
             msg = msg.substring(4).trim();
             break;
     }
-    
-    const text = config.msgFormat ? `[${new Date().toLocaleString('zh-CN',{ hour12: false })}][${pack.sender.card || pack.sender.nickname}(${pack.user_id})] >> ${msg}` : msg;
+
+    const text = config.msgFormat ? `[${new Date().toLocaleString('zh-CN', { hour12: false })}][${pack.sender.card || pack.sender.nickname}(${pack.user_id})] >> ${msg}` : msg;
     callDSAPI(pack.group_id, text, (msg, res) => {
         const usage = res?.data?.usage;
         if (usage && config.tokenInfo) {
             const tokenCost = (usage.completion_tokens / 1000000) * 3  // 输出3元/百万
-              + ((usage.prompt_cache_miss_tokens || 0) / 1000000) * 2  // 未命中2元/百万
-              + ((usage.prompt_cache_hit_tokens || 0) / 1000000) * 0.2; // 命中0.2元/百万  
+                + ((usage.prompt_cache_miss_tokens || 0) / 1000000) * 2  // 未命中2元/百万
+                + ((usage.prompt_cache_hit_tokens || 0) / 1000000) * 0.2; // 命中0.2元/百万  
             msg = `📊 Token消耗 (预计: ${tokenCost?.toFixed(6)} 元)`
-              + `\n  ├─ 输入: ${usage?.prompt_tokens}`
-              + `\n  │ ├─ 命中: ${usage?.prompt_cache_hit_tokens || 0}`
-              + `\n  │ └─ 未命中: ${usage?.prompt_cache_miss_tokens || 0}`
-              + `\n  ├─ 输出: ${usage?.completion_tokens}`
-              + `\n  └─ 总计: ${usage?.total_tokens}`
-              + `\n=================\n${msg}`;
+                + `\n  ├─ 输入: ${usage?.prompt_tokens}`
+                + `\n  │ ├─ 命中: ${usage?.prompt_cache_hit_tokens || 0}`
+                + `\n  │ └─ 未命中: ${usage?.prompt_cache_miss_tokens || 0}`
+                + `\n  ├─ 输出: ${usage?.completion_tokens}`
+                + `\n  └─ 总计: ${usage?.total_tokens}`
+                + `\n=================\n${msg}`;
         };
         spark.QClient.sendGroupMsg(pack.group_id, at2msg(msg));
     });
 });
 
 // Call DeepSeek API
-async function callDSAPI(uid, text, resFunc = (() => {})) {
+async function callDSAPI(uid, text, resFunc = (() => { })) {
     addMemory(uid, 'user', text); // 添加记忆 - 用户消息
-    
+
     try {
         const message = [
-          { role: 'system', content: config.system },
-          ...getMemory(uid)
+            { role: 'system', content: config.system },
+            ...getMemory(uid)
         ];
-      
+
         const response = await axios.post(config.url, {
             model: config.name,
             max_tokens: config.maxTokens,
@@ -166,7 +166,7 @@ async function callDSAPI(uid, text, resFunc = (() => {})) {
             },
             timeout: 30000
         });
-        
+
         const aiReply = response.data.choices[0].message.content;
         addMemory(uid, 'assistant', aiReply); // 添加记忆 - ds回复消息
         resFunc(aiReply, response);
@@ -178,10 +178,10 @@ async function callDSAPI(uid, text, resFunc = (() => {})) {
 // 获取记忆
 function getMemory(uid) {
     if (memoryMap.has(uid)) return memoryMap.get(uid);
-    
+
     const filePath = path.join(memoryDir, `${uid}.json`);
     let memory = [];
-    
+
     if (fs.existsSync(filePath)) {
         try {
             const content = fs.readFileSync(filePath, 'utf8').trim();
@@ -194,7 +194,7 @@ function getMemory(uid) {
             if (fs.existsSync(filePath)) fs.renameSync(filePath, filePath + '.bak');
         }
     }
-    
+
     memoryMap.set(uid, memory);
     return memory;
 }
@@ -206,37 +206,37 @@ function addMemory(uid, role, content) {
         memory = [];
         memoryMap.set(uid, memory);
     }
-  
+
     memory.push({ role, content });
-    
+
     // 超出时备份
     if (memory.length > config.memory_length) {
         if (config.memory_bak) { // 记忆备份文件
             const removed = memory.slice(0, memory.length - config.memory_length);
             const bakPath = path.join(memoryBakDir, `${uid}.json`);
-            
+
             let bak = [];
             if (fs.existsSync(bakPath)) bak = JSON.parse(fs.readFileSync(bakPath, 'utf8'));
             bak.push(...removed);
             fs.writeFileSync(bakPath, JSON.stringify(bak, null, 2));
         }
-        
+
         // 保留最后N条
         memory = memory.slice(-config.memory_length);
         memoryMap.set(uid, memory);
     }
-    
+
     // 写入当前记忆
     const filePath = path.join(memoryDir, `${uid}.json`);
-    fs.writeFile(filePath, JSON.stringify(memory, null, 2), () => {});
-    
+    fs.writeFile(filePath, JSON.stringify(memory, null, 2), () => { });
+
     return memory;
 }
 
 // 获取用户名称
 async function getUserName(groupId, userId) {
     const cacheKey = `${groupId}_${userId}`;
-    
+
     try {
         const info = await spark.QClient.getGroupMemberInfo(groupId, userId);
         return (info.card || info.nickname || `${userId}`);
@@ -257,7 +257,7 @@ async function formatMsgAsync(msg, pack = null) {
             return '';
         }).join("");
     }
-    
+
     const promises = msg.map(async (t) => {
         switch (t.type) {
             case 'text': return t.data.text;
@@ -270,7 +270,7 @@ async function formatMsgAsync(msg, pack = null) {
             default: return '';
         }
     });
-    
+
     const results = await Promise.all(promises);
     return results.join("");
 }
@@ -280,10 +280,10 @@ function at2msg(text) {
     if (!text) return [];
     const segments = [];
     let lastIndex = 0;
-    
+
     const regex = /\[atUin=(\d+)\]/g;
     let match;
-    
+
     while ((match = regex.exec(text)) !== null) {
         if (match.index > lastIndex) {
             segments.push({
@@ -291,15 +291,15 @@ function at2msg(text) {
                 data: { text: text.substring(lastIndex, match.index) }
             });
         }
-        
+
         segments.push({
             type: 'at',
             data: { qq: match[1] }
         });
-        
+
         lastIndex = regex.lastIndex;
     }
-    
+
     if (lastIndex < text.length) {
         segments.push({
             type: 'text',

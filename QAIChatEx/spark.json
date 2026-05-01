@@ -1,0 +1,10 @@
+{
+    "name": "QAIChatEx",
+    "author": "冰凌呀",
+    "version": [0, 0, 1],
+    "desc": "在你的QQ群内接入AI吧~",
+    "loadmode":"bds",
+    "priority": "post",
+    "permission": "key",
+    "load": true
+}
