@@ -1,0 +1,14 @@
+{
+    "name": "sb3_AIGC-Image",
+    "author": "冰凌",
+    "version": [
+        1,
+        0,
+        0
+    ],
+    "desc": "在群内使用AI图片生成吧~",
+    "loadmode": "bds",
+    "permission": "key",
+    "priority": "main",
+    "load": true
+}
