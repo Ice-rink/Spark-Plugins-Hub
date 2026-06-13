@@ -80,48 +80,10 @@ async function onMessage(chatId, pack, reply) {
     });
 }
 
-async function callAI(uid, data, callback = (() => { })) {
-    addMemory(uid, 'user', data); // 添加记忆 - 用户消息
-    try {
-        const message = [
-            { role: 'system', content: config.system },
-            ...getMemory(uid)
-        ];
-
-        // logger.warn("QQ -> AI:\n" + (JSON.stringify(message, null, 4)));
-
-        const response = await axios.post(config.url, {
-            model: config.name,
-            max_tokens: config.maxTokens,
-            temperature: config.temperature,
-            tools: config.ai.tools ?? [],
-            stream: false,
-            messages: message
-        }, {
-            headers: {
-                'Authorization': `Bearer ${config.key}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 30000
-        });
-
-        logger.warn("AI -> QQ:\n" + (JSON.stringify(response, (key, value) => {
-            if (key === 'request' || key === 'config' || key === 'headers') return undefined;
-            if (typeof value === 'bigint') return value.toString();
-            return value;
-        }, 4)));
-
-        const aiReply = response.data.choices[0].message.content;
-
-        addMemory(uid, 'assistant', aiReply); // 添加记忆
-        callback(aiReply, response);
-    } catch (e) { logger.error('API 调用失败: ' + e) }
-}
-
-
 // API 调用
-async function callAPI(uid, data, callback = (() => { })) {
-    addMemory(uid, 'user', data); // 添加记忆 - 用户消息
+async function callAPI(uid, data, callback = (() => { }), canAddMemory = true) {
+    if (canAddMemory) addMemory(uid, 'user', data);
+
     try {
         const sendData = {
             model: config.ai.name,
@@ -129,13 +91,15 @@ async function callAPI(uid, data, callback = (() => { })) {
             temperature: config.ai.temperature,
             stream: false,
             tools: tools.definition,
+            tool_choice: 'auto',
             messages: [
                 { role: 'system', content: config.ai.system },
                 ...getMemory(uid)
             ]
-        }
+        };
 
-        logger.warn("QQ -> AI:\n" + (JSON.stringify(sendData, null, 4)));
+        if (config.debug) logger.warn("QQ -> AI:\n" + JSON.stringify(sendData, null, 4));
+
         const response = await axios.post(config.ai.url, sendData, {
             headers: {
                 'Authorization': `Bearer ${config.ai.key}`,
@@ -144,24 +108,70 @@ async function callAPI(uid, data, callback = (() => { })) {
             timeout: 30000
         });
 
-        logger.warn("AI -> QQ:\n" + (JSON.stringify(response, (key, value) => {
+        if (config.debug) logger.warn("AI -> QQ:\n" + (JSON.stringify(response, (key, value) => {
             if (key === 'request' || key === 'config' || key === 'headers') return undefined;
             if (typeof value === 'bigint') return value.toString();
             return value;
         }, 4)));
 
-        const aiReply = response.data.choices[0].message.content;
+        const message = response.data.choices[0].message;
 
-        addMemory(uid, 'assistant', aiReply); // 添加记忆
-        callback(aiReply, response);
-    } catch (e) { logger.error('API 调用失败: ' + e) }
-}
+        // 处理工具调用
+        if (message.tool_calls && message.tool_calls.length > 0) {
+            // 添加助手消息（包含工具调用）
+            addMemory(uid, 'assistant', message.content || '', message.tool_calls);
 
-// 调用工具
-function callTools(name, ...query) {
-    if (tools.calls[name] === null) return ["未知的工具"];
+            // 执行所有工具调用
+            const toolResults = [];
+            const chatData = {
+                uid: uid,
+                config: config
+                // 以后想到了再加...
+            };
 
-    // return await tools.calls[name](...query);
+            for (const toolCall of message.tool_calls) {
+                const toolName = toolCall.function.name;
+                const toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+
+                // 执行工具
+                let toolResult;
+                if (tools.calls[toolName]) {
+                    try {
+                        const argsArray = Object.values(toolArgs);
+                        toolResult = await Promise.resolve(tools.calls[toolName](chatData, ...argsArray));
+                        toolResult = typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult);
+                    } catch (e) {
+                        toolResult = `工具执行错误: ${e.message}`;
+                        logger.error(`工具 ${toolName} 执行失败: ${e}`);
+                    }
+                } else {
+                    toolResult = `未知工具: ${toolName}`;
+                }
+
+                toolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: toolResult
+                });
+            }
+
+            // 添加工具结果到记忆
+            toolResults.forEach(result => addMemory(uid, result.role, result.content, null, result.tool_call_id));
+
+            // 递归调用继续对话（不重复添加用户消息）
+            if (message.content) callback(message.content, response);
+            return callAPI(uid, data, callback, false);
+        }
+
+        // 处理普通文本回复
+        if (message.content) {
+            addMemory(uid, 'assistant', message.content);
+            callback(message.content, response);
+        }
+    } catch (e) {
+        logger.error('API 调用失败: ' + e);
+        callback(`API调用失败: ${e.message}`, null);
+    }
 }
 
 
@@ -192,33 +202,34 @@ function getMemory(uid) {
 }
 
 // 添加记忆
-function addMemory(uid, role, content) {
+function addMemory(uid, role, content, tool_calls = null, tool_call_id = null) {
     let memory = getMemory(uid);
     if (!Array.isArray(memory)) {
         memory = [];
         memoryMap.set(uid, memory);
     }
 
-    memory.push({ role, content });
+    const message = { role, content };
+    if (tool_calls) message.tool_calls = tool_calls;
+    if (tool_call_id) message.tool_call_id = tool_call_id;
+
+    memory.push(message);
 
     // 超出时备份
     if (memory.length > config.memory_length) {
-        if (config.memory_bak) { // 记忆备份文件
+        if (config.memory_bak) {
             const removed = memory.slice(0, memory.length - config.memory_length);
             const bakPath = path.join(memoryBakDir, `${uid}.json`);
-
             let bak = [];
             if (fs.existsSync(bakPath)) bak = JSON.parse(fs.readFileSync(bakPath, 'utf8'));
             bak.push(...removed);
             fs.writeFileSync(bakPath, JSON.stringify(bak, null, 2));
         }
 
-        // 保留最后N条
         memory = memory.slice(-config.memory_length);
         memoryMap.set(uid, memory);
     }
 
-    // 写入当前记忆
     const filePath = path.join(memoryDir, `${uid}.json`);
     fs.writeFile(filePath, JSON.stringify(memory, null, 2), () => { });
 

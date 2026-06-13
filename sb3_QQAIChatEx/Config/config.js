@@ -1,6 +1,9 @@
 const knowledge = require("./knowledge.js");
 const tools = require("./tools.js");
+
 module.exports = {
+    debug: false,
+
     // === AI设置 === //
     ai: {
         key: "sk-000000000000000000000000000000000000000000000000", // 请求密钥
@@ -77,18 +80,13 @@ module.exports = {
         linebreak: {// 多次回复
             enable: true, // 启用
             timeout: 500, // 延迟毫秒
-            split: /[。？；！：\n]+/ // 分割的正则表达式
+            split: /[。；\n]+/ // 分割的正则表达式
         }
     },
 
-    // === 记忆长度 === //
-    // 可以控制机器人最多能记忆多少条信息
-    // 注意，此值过高可能会导致大量消耗token
-    memory_length: 20,
-
-    // === 记忆回收站 === //
-    // 超过记忆长度直接清除太冷血了？没事 立即启用这个
-    // 把超过记忆长度的记忆迁移至memory_bak文件夹
-    // 关闭此选项超过的记忆会直接清除
-    memory_bak: true,
+    // === 记忆设置 === //
+    memory: {
+        length: 50, // 记忆长度
+        bak: true // 记忆清除时是否放入回收站
+    }
 };
