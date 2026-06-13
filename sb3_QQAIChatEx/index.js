@@ -9,71 +9,81 @@ if (!fs.existsSync(memoryDir)) fs.mkdirSync(memoryDir, { recursive: true });
 if (!fs.existsSync(memoryBakDir)) fs.mkdirSync(memoryBakDir, { recursive: true });
 
 const config = {
-    // === API接口设置 === //
-    // 普通用户建议只修改 key
-    // 如果你是高级用户，可以通过修改下面三个项来达到接入其他平台AI的目的
-    // 当然前提是请求和返回要跟平台的api一致
-
-    key: "sk-000000000000000000000000000000000000000000000000", // 请求密钥
-    url: "https://api.siliconflow.cn/v1/chat/completions", // 请求的ai端点
-
-    name: "Qwen/Qwen3-Omni-30B-A3B-Instruct", // 多模态模型名称
-
-    // === 输入设置 === //
-    // 设置AI可以接收到的消息类型
-    // 正确设置选项可降低token消耗，提高响应速度
-    input: {
-        text: true, // 文本消息 （这个要是关了我们玩什么）
-        image: true, // 图片消息
-        audio: false, // 语音消息
-        video: false // 视频消息
+    // === AI设置 === //
+    ai: {
+        key: "sk-000000000000000000000000000000000000000000000000", // 请求密钥
+        url: "https://apihub.agnes-ai.com/v1/chat/completions", // 请求的ai端点
+        name: "agnes-2.0-flash", // 多模态模型名称
+        maxTokens: 5000, // token上线
+        temperature: 1.3, // 模型温度
+        system: ([ // 系统提示词
+            "你叫兮兮(QQ号：3911773729)，QQ里的普通朋友，要像真人一样聊天～",
+            "说话方式",
+            "* 不用括号/方框写动作（比如别写“（笑）”）",
+            "* 别用“他说：”这种，直接说内容",
+            "* 看看前面聊了啥，顺着聊下去",
+            "* 别让人发现你是AI",
+            "* 别人要你生成图片，你说你不会画画/懒得找素材",
+            "",
+            "输入消息格式",
+            "[{时间}][{名字}({QQ})] >> {说的话}",
+            "(这个格式只给你看，回复时千万不要用这个格式！直接说内容!)",
+            "",
+            "注意",
+            "- 别叫别人“QQ号”或“user”，叫名字，可以亲切一点",
+            "- 想@人的时候用 [atUin=QQ号] 加空格再加话",
+            "- 回复别太长，日常聊天长度就行",
+            "- 说话自然点，少用表情符号",
+            "- 别老@人，该用时再用",
+            "- 别说重复的话，别输出乱码",
+            "- 别像ai一样说术语"
+        ].join("\n"))
     },
 
-    // === token上线 == //
-    // 设置单次对话最大使用的token数
-    // 值过低可能会导致对话被突然从中间截断
-    // >> 注意：此项对非文本信息不起作用！！！
-    maxTokens: 5000,
+    // === 响应设置 === //
+    call: {
+        // 群聊
+        group: {
+            enable: true, // 启用
+            keywords: ["兮兮", "服务器"], // 关键词触发
+            at: true, // 仅接收at
+            data: new Set([ // 响应的群聊
+                1087355660, // 测试群
+                1029879634, // 1
+                856868277, // 2
+                464262043 // 4
+            ])
+        },
 
-    // === 模式设置 === //
-    // 设置响应的模式，可在下面列表内选一个数字填入：
-    // 0: 处理每一条  || 处理每一条收到的信息
-    // 1: 仅at       || 只有@了机器人 她才会鸟你
-    // 2: 仅群聊      || 只有群聊才会鸟你
-    // 3: 仅私聊      || 只有私聊才会鸟你
-    mode: 1,
+        // 私信
+        private: {
+            enable: true, // 启用
+            data: new Set([ // 响应的私信
+                1669044502
+            ])
+        }
+    },
 
-    // === 不回复概率 === //
-    // 设置概率回复的概率，范围 0-100
-    // 填写40表示40%概率不回复，60%概率回复
-    // 填写0关闭
-    probability: 0,
+    // === 输入设置 === //
+    input: {
+        msgFormat: true, // 信息输入格式化
+        type: { // 消息输入类型
+            text: true, // 文本消息 （这个要是关了我们玩什么）
+            image: true, // 图片消息
+            audio: false, // 语音消息
+            video: false // 视频消息
+        }
+    },
 
-    // === 响应的群聊 === //
-    // 设置要响应的群聊，只有列表内的群聊收到消息会响应，不在列表内的鸟都不鸟你（
-    // 在列表内任意位置增加 "all" 则响应所有群聊，可以不用删旧配置
-    // target_ + QQ号 是响应私聊信息
-    group: new Set([1087355660, "target_1669044502"]),
-
-    // === 信息输入格式化 === //
-    // 开启后，机器人接收到的信息格式为 "[{时间}][{名字}({QQ})] >> {说的话}"
-    // 此配置主要用于在增加缓存命中率的情况下让AI读取时间/输入者名称和QQ
-    msgFormat: true,
-
-    // === Token消耗显示 === //
-    // 开启后可在DS发送的信息内看到详细token消耗表
-    // 此配置主要用于调试，平常情况下不建议启用
-    tokenInfo: true,
-
-    // === 模型温度 === //
-    // 用于控制DS的输出
-    // 我们建议您根据如下表格，按使用场景设置 temperature。
-    // 代码生成/数学解题     0.0
-    // 数据抽取/分析        1.0
-    // 通用对话/翻译        1.3
-    // 创意类写作/诗歌创作   1.5
-    // 如果还是不懂 可以看看这篇文章 (https://zhuanlan.zhihu.com/p/666670367)
-    temperature: 1.3,
+    // === 回复设置 === //
+    reply: {
+        tokenInfo: false, // Token消耗显示
+        linebreak: {// 多次回复
+            enable: true, // 启用
+            timeout: 500, // 延迟毫秒
+            split: /[，。？；！：\n]+/ // 分割的正则表达式
+        }
+    },
 
     // === 记忆长度 === //
     // 可以控制机器人最多能记忆多少条信息
@@ -85,83 +95,76 @@ const config = {
     // 把超过记忆长度的记忆迁移至memory_bak文件夹
     // 关闭此选项超过的记忆会直接清除
     memory_bak: true,
-
-    // === 模型提示词 === //
-    // 让AI知道她是谁，要干什么
-    // 使用自定义提示词时 一定要加上这一条 "输入消息格式\n[{时间}][{名字}({QQ})] >> {说的话}\n(这个格式只给你看，回复时千万不要用这个格式！直接说内容!)"
-    // 如果你关闭了输入信息格式化可以忽略上一条内容
-    system: ([
-        "你叫兮兮(QQ号：3911773729)，QQ里的普通朋友，要像真人一样聊天～",
-        "说话方式",
-        "* 不用括号/方框写动作（比如别写“（笑）”）",
-        "* 别用“他说：”这种，直接说内容",
-        "* 看看前面聊了啥，顺着聊下去",
-        "* 别让人发现你是AI",
-        "* 别人要你生成图片，你说你不会画画/懒得找素材",
-        "",
-        "输入消息格式",
-        "[{时间}][{名字}({QQ})] >> {说的话}",
-        "(这个格式只给你看，回复时千万不要用这个格式！直接说内容!)",
-        "",
-        "注意",
-        "- 别叫别人“QQ号”或“user”，叫名字，可以亲切一点",
-        "- 想@人的时候用 [atUin=QQ号] 加空格再加话",
-        "- 回复别太长，日常聊天长度就行",
-        "- 说话自然点，少用表情符号",
-        "- 别老@人，该用时再用",
-        "- 别说重复的话，别输出乱码",
-        "- 别像ai一样说术语"
-    ].join("\n"))
 };
 
-spark.on('message.group.normal', onMessage); // 群聊
-spark.on('message.private.friend', onMessage); // 私聊
-
-async function onMessage(pack, reply) {
-    const chatId = pack.group_id || `target_${pack.user_id}`;
-    if (!(config.group.has("all")
-        || config.group.has(chatId)
+// 群聊
+const groupData = config.call.group;
+spark.on('message.group.normal', async (pack, reply) => {
+    if (!(groupData.enable // 总开关
+        && (groupData.data.has(pack.group_id) || groupData.data.has("all"))
     )) return;
 
-    switch (config.mode) { // 响应模式
-        case 0: break; // all
-        case 1: // at
-            if (!pack.message.some(i => (i.type === "at" && i.data.qq == pack.self_id))) return;
-            break;
-        case 2: // group
-            if (chatId[0] === "t") return;
-            break;
-        case 3: // private
-            if (chatId[0] !== "t") return;
-            break;
-    }
+    // 关键词
+    if (groupData.keywords.length > 0
+        && groupData.keywords.some(key => pack.raw_message.includes(key))
+    ) return onMessage(`${pack.group_id}`, pack, reply);
 
-    if (config.probability // 不回复概率
-        && (Math.random() * 100 < Math.max(0, Math.min(100, config.probability)))
-    ) return;
+    // at
+    if (groupData.at
+        && pack.message.some(i => (i.type === "at" && i.data.qq == pack.self_id))
+    ) return onMessage(`${pack.group_id}`, pack, reply);
 
+    onMessage(`${pack.group_id}`, pack, reply);
+});
+
+// 私聊
+const privateData = config.call.private;
+spark.on('message.private.friend', async (pack, reply) => {
+    if (!(privateData.enable
+        && (privateData.data.has(pack.user_id) || privateData.data.has("all"))
+    )) return;
+
+    onMessage(`target_${pack.user_id}`, pack, reply);
+});
+
+async function onMessage(chatId, pack, reply) {
     callAPI(chatId, (await formatMsg(pack, 0)), (msg, res) => {
+        let additionalMsg = "";
+
+        // Token 显示
         const usage = res?.data?.usage;
-        if (usage && config.tokenInfo) {
+        if (usage && config.reply.tokenInfo) {
             const tokenCost = (usage.completion_tokens / 1000000) * 2.8  // 输出2.8元/百万
-                // + ((usage?.prompt_cache_hit_tokens || 0) / 1000000) * 0 // 命中0元/百万
+                + ((usage?.prompt_cache_hit_tokens || 0) / 1000000) * 0.02 // 命中0.02元/百万
                 + ((usage?.prompt_cache_miss_tokens || usage?.prompt_tokens) / 1000000) * 0.7; // 未命中0.7元/百万
-            msg = `📊 Token消耗 (预计: ${tokenCost?.toFixed(6)} 元)`
+            additionalMsg = `📊 Token消耗 (预计: ${tokenCost?.toFixed(6)} 元)`
                 + `\n  ├─ 输入: ${usage?.prompt_tokens}`
-                // + `\n  │ ├─ 命中: ${usage?.prompt_cache_hit_tokens || 0}`
-                // + `\n  │ └─ 未命中: ${usage?.prompt_cache_miss_tokens || 0}`
+                + `\n  │ ├─ 命中: ${usage?.prompt_cache_hit_tokens || 0}`
+                + `\n  │ └─ 未命中: ${usage?.prompt_cache_miss_tokens || 0}`
                 + `\n  ├─ 输出: ${usage?.completion_tokens}`
                 + `\n  └─ 总计: ${usage?.total_tokens}`
                 + `\n=================`
-                + `\n${msg}`;
         };
-        reply(msg);
+
+        // 多次回复
+        if (config.reply.linebreak.enable) {
+            if (additionalMsg)
+                reply(additionalMsg);
+
+            let msgIndex = 0;
+            msg
+                .split(config.reply.linebreak.split)
+                .forEach(text => {
+                    setTimeout(() => {
+                        reply(text)
+                    }, config.reply.linebreak.timeout * msgIndex);
+                    msgIndex++
+                });
+        } else reply(additionalMsg + msg);
     });
 }
 
-
-// API 调用
-async function callAPI(uid, data, callback = (() => { })) {
+async function callAI(uid, data, callback = (() => { })) {
     addMemory(uid, 'user', data); // 添加记忆 - 用户消息
     try {
         const message = [
@@ -180,6 +183,45 @@ async function callAPI(uid, data, callback = (() => { })) {
         }, {
             headers: {
                 'Authorization': `Bearer ${config.key}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+
+        // console.warn("AI -> QQ:\n" + (JSON.stringify(response, (key, value) => {
+        //     if (key === 'request' || key === 'config' || key === 'headers') return undefined;
+        //     if (typeof value === 'bigint') return value.toString();
+        //     return value;
+        // }, 4)));
+
+        const aiReply = response.data.choices[0].message.content;
+
+        addMemory(uid, 'assistant', aiReply); // 添加记忆
+        callback(aiReply, response);
+    } catch (e) { console.error('API 调用失败: ' + e) }
+}
+
+
+// API 调用
+async function callAPI(uid, data, callback = (() => { })) {
+    addMemory(uid, 'user', data); // 添加记忆 - 用户消息
+    try {
+        const message = [
+            { role: 'system', content: config.ai.system },
+            ...getMemory(uid)
+        ];
+
+        // console.warn("QQ -> AI:\n" + (JSON.stringify(message, null, 4)));
+
+        const response = await axios.post(config.ai.url, {
+            model: config.ai.name,
+            max_tokens: config.ai.maxTokens,
+            temperature: config.ai.temperature,
+            stream: false,
+            messages: message
+        }, {
+            headers: {
+                'Authorization': `Bearer ${config.ai.key}`,
                 'Content-Type': 'application/json'
             },
             timeout: 30000
@@ -304,13 +346,13 @@ async function formatMsg(pack, mode = 0) {
         const name = pack.sender.card || pack.sender.nickname || qid;
         let msg = pack.message;
 
-        if (config.input.text) msg = await Promise.all(
+        if (!config.input.type.text) msg = await Promise.all(
             msg.map(async (t) => {
                 switch (t.type) {
                     case 'text': {
                         return {
                             "type": "text",
-                            "text": (config.msgFormat
+                            "text": (config.input.msgFormat
                                 ? `[${new Date().toLocaleString('zh-CN', { hour12: false })}][${name}(${qid})] >> ${t.data.text}`
                                 : t.data.text
                             )
@@ -333,7 +375,7 @@ async function formatMsg(pack, mode = 0) {
                     case 'text': return t;
                     case 'at': return t;
                     case 'image': {
-                        if (config.input.image) return { "type": "text", "text": "[image]" };
+                        if (!config.input.type.image) return { "type": "text", "text": "[image]" };
                         return {
                             "type": "image_url",
                             "image_url": {
@@ -343,7 +385,7 @@ async function formatMsg(pack, mode = 0) {
                         }
                     };
                     case 'audio': {
-                        if (config.input.audio) return { "type": "text", "text": "[audio]" };
+                        if (!config.input.type.audio) return { "type": "text", "text": "[audio]" };
                         return {
                             "type": "audio_url",
                             "audio_url": {
@@ -352,7 +394,7 @@ async function formatMsg(pack, mode = 0) {
                         }
                     };
                     case 'video': {
-                        if (config.input.video) return { "type": "text", "text": "[video]" };
+                        if (!config.input.type.video) return { "type": "text", "text": "[video]" };
                         return {
                             "type": "video_url",
                             "video_url": {

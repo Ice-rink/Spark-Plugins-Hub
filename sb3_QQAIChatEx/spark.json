@@ -5,6 +5,6 @@
     "desc": "在你的QQ群内接入AI吧~",
     "loadmode":"bds",
     "priority": "post",
-    "permission": "key",
+    "permission": "core",
     "load": true
 }
