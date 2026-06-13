@@ -1,5 +1,4 @@
 const axios = require('axios');
-const { config } = require('node:process');
 const pendingRequests = new Map();
 
 spark.on('gocq.pack', (pack) => {
