@@ -86,28 +86,48 @@ module.exports = {
             reverseOrder = Boolean(reverseOrder);
 
             try {
-                let response;
+                let msgList = {};
 
                 if (chatData.uid.startsWith("target_")) {
-                    response = await request('get_friend_msg_history', {
+                    msgList = await request('get_friend_msg_history', {
                         user_id: chatData.uid.slice(7),
                         message_seq: 0,
                         count: count,
                         reverseOrder: reverseOrder
                     });
                 } else {
-                    response = await request('get_group_msg_history', {
+                    msgList = await request('get_group_msg_history', {
                         group_id: chatData.uid,
                         count: count,
                         reverseOrder: reverseOrder
                     });
                 }
 
-                return JSON.stringify(response, (key, value) => {
+                // 预定义格式化函数
+                function formatTimestamp(timestamp) {
+                    const date = new Date(timestamp * 1000);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                    return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+                };
+
+                // 批量处理
+                msgList = msgList?.data?.messages?.map(msg => {
+                    if (msg?.message?.[0]?.data?.text?.startsWith("📊 Token消耗")) return;
+                    const timeStr = formatTimestamp(msg.time);
+                    const sender = msg.sender.card || msg.sender.nickname;
+                    return `[${timeStr}][${sender} (${msg.sender.user_id})] >> ${msg.raw_message}`;
+                });
+
+                return JSON.stringify(msgList, (key, value) => {
                     if (key === 'request' || key === 'config' || key === 'headers') return undefined;
                     if (typeof value === 'bigint') return value.toString();
                     return value;
-                }, 4) ?? "null";
+                }) ?? "null";
 
             } catch (error) {
                 logger.error(`获取聊天记录失败: ${error.message}`);

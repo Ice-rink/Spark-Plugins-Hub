@@ -170,7 +170,7 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true) {
         }
     } catch (e) {
         logger.error('API 调用失败: ' + e);
-        callback(`API调用失败: ${e.message}`, null);
+        callback(`这道题有点难呢...我们等下再来学习吧!  ${e.message}`, null);
     }
 }
 
@@ -187,18 +187,24 @@ function getMemory(uid) {
     if (fs.existsSync(filePath)) {
         try {
             const content = fs.readFileSync(filePath, 'utf8').trim();
-            if (content) {
-                const parsed = JSON.parse(content);
-                memory = Array.isArray(parsed) ? parsed : [];
-            }
+            if (content) memory = JSON.parse(content);
         } catch (e) {
             logger.error(`读取记忆文件失败: ${filePath}`, e.message);
-            if (fs.existsSync(filePath)) fs.renameSync(filePath, filePath + '.bak');
         }
     }
 
-    memoryMap.set(uid, memory);
-    return memory;
+    // 合并连续的 user 消息（核心逻辑）
+    const merged = memory.reduce((acc, msg) => {
+        if (msg.role === 'user' && acc.length && acc[acc.length-1].role === 'user') {
+            acc[acc.length-1].content += '\n' + msg.content;
+        } else {
+            acc.push({ ...msg });
+        }
+        return acc;
+    }, []);
+    
+    memoryMap.set(uid, merged);
+    return merged;
 }
 
 // 添加记忆
