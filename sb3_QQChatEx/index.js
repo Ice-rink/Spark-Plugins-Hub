@@ -113,9 +113,9 @@ mc.listen("onConsoleCmd", (cmd) => {
 
 // === QQ2MC === //
 spark.on('message.group.normal', async (pack, reply) => {
-    if (pack.group_id !== config.QQChat
-        || pack.message.length === 0
-    ) return;
+    if (!(pack.group_id !== config.QQChat
+        && pack.message.length === 0
+    )) return;
 
     const userName = pack.sender.card || pack.sender.nickname;
     const msg = (await formatMsg(pack.message, pack)).replace(/\n/g, "\\n");
