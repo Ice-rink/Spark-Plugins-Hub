@@ -2,6 +2,7 @@ const config = require('./Config/config.js');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const { type } = require('os');
 
 const memoryMap = new Map(); // 记忆缓存
 const tools = config.ai.tools; // 工具定义
@@ -17,6 +18,9 @@ spark.on('message.group.normal', async (pack, reply) => {
     if (!(groupData.enable // 总开关
         && (groupData.data.has(pack.group_id) || groupData.data.has("all"))
     )) return;
+
+    if (pack.raw_message.startsWith("/aichat "))
+        return onCommand(`${pack.group_id}`, pack, reply);
 
     // 接受所有消息
     if (groupData.all) return onMessage(`${pack.group_id}`, pack, reply);
@@ -39,8 +43,22 @@ spark.on('message.private.friend', async (pack, reply) => {
         && (privateData.data.has(pack.user_id) || privateData.data.has("all"))
     )) return;
 
+    if (pack.raw_message.startsWith("/aichat "))
+        return onCommand(`target_${pack.user_id}`, pack, reply);
+
     onMessage(`target_${pack.user_id}`, pack, reply);
 });
+
+async function onCommand(uid, pack, reply) {
+    const cmd = pack.raw_message.slice(8).split(" ");
+
+    switch (cmd[0]) {
+        case "memory": { // 记忆相关
+            if (cmd[1] === "reload")
+                return memoryMap.delete(uid);
+        }
+    }
+}
 
 async function onMessage(chatId, pack, reply) {
     callAPI(chatId, (await formatMsg(pack, 0)), (msg, res) => {
@@ -281,9 +299,7 @@ async function formatMsg(pack, mode = 0) {
                     case 'text': {
                         return {
                             type: "text",
-                            text: (config.input.msgFormat
-                                ? `[${new Date().toLocaleString('zh-CN', { hour12: false })}][${name}(${qid})] >> ${t.data.text}`
-                                : t.data.text)
+                            text: t.data.text
                         };
                     }
                     case 'at': {
@@ -323,11 +339,34 @@ async function formatMsg(pack, mode = 0) {
                             }
                         };
                     }
+                    case 'reply': {
+                        const replyPack = await spark.QClient.getMsg(t.data.id);
+                        return {
+                            type: "text",
+                            text: `---引用消息(CQ码)\n${
+                                replyPack.raw_message
+                                    .replace(/&#44;/g, ',')
+                                    .replace(/&amp;/g, '&')
+                                    .replace(/&#91;/g, '[')
+                                    .replace(/&#93;/g, ']')
+                            }\n---`
+                        }
+                    }
                     default:
                         return t;
                 }
             })
         );
+
+        if (config.input.msgFormat) {
+            msg = [
+                {
+                    type: "text",
+                    text: `[${new Date().toLocaleString('zh-CN', { hour12: false })}][${name}(${qid})] >> `
+                },
+                ...msg
+            ]
+        }
 
         msg = mergeText(msg, (textBuffer) => {
             return {
@@ -337,7 +376,9 @@ async function formatMsg(pack, mode = 0) {
         });
 
         return msg.filter(i => i !== undefined);
-    } else { } // 输出消息 (AI -> QQ)
+    } else if (mode === 1) { // 输出消息 (AI -> QQ)
+
+    }
 }
 
 // 获取用户名称

@@ -58,10 +58,10 @@ module.exports = {
                     properties: {
                         count: {
                             type: 'integer',
-                            description: '要获取的消息数量，默认20条，最大为40',
-                            default: 40,
+                            description: '要获取的消息数量，默认10条，最大为400',
+                            default: 10,
                             minimum: 1,
-                            maximum: 40
+                            maximum: 400
                         },
                         reverseOrder: {
                             type: 'boolean',
@@ -69,7 +69,7 @@ module.exports = {
                             default: false
                         }
                     },
-                    required: ['chatData']
+                    required: ["count"]
                 }
             }
         }
@@ -81,7 +81,7 @@ module.exports = {
         },
 
         // 获取聊天记录
-        query_chat_data: async (chatData, count = 20, reverseOrder = false) => {
+        query_chat_data: async (chatData, count = 10, reverseOrder = false) => {
             count = +count;
             reverseOrder = Boolean(reverseOrder);
 
