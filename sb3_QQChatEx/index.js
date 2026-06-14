@@ -1,3 +1,4 @@
+let is_reload = false;
 const config = {
     // 转发聊天的群聊
     QQChat: 759676433,
@@ -65,6 +66,7 @@ const config = {
 }
 
 
+
 // === MC2QQ === //
 // Chat - 聊天
 if (config.MC2QQ.Chat)
@@ -83,15 +85,17 @@ if (config.MC2QQ.Chat)
 
 // Join - 加入
 if (config.MC2QQ.Join)
-    mc.listen("onJoin", (pl) =>
-        spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 进入服务器`)
-    );
+    mc.listen("onJoin", (pl) => {
+        if (!is_reload)
+            spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 进入服务器`)
+    });
 
 // Left - 退出
 if (config.MC2QQ.Left)
-    mc.listen("onLeft", (pl) =>
+    mc.listen("onLeft", (pl) => {
+        if (!is_reload)
         spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 退出服务器`)
-    );
+    });
 
 
 // Say - 广播
@@ -102,6 +106,9 @@ if (config.MC2QQ.Say)
     });
 
 ll.exports((msg) => spark.QClient.sendGroupMsg(config.QQChat, `${WFilter(msg)}`), "QQChatEx", "onSendChat");
+mc.listen("onConsoleCmd", (cmd) => {
+    if (cmd === "ll reload sparkbridge3") is_reload = true;
+})
 
 
 // === QQ2MC === //
@@ -141,11 +148,11 @@ spark.on('message.group.normal', async (pack, reply) => {
         if (replyId !== null) {
             const reply = await spark.QClient.getMsg(replyId);
             const msgData = (await formatMsg(reply.message, reply)).match(/\[([^\]]+)\](?:\[[^\]]+\])?([^>]+)>>\s*(.+)/);
-            if (msgData && msgData[2]) chatMsg = `@${msgData[2]} ` + chatMsg;
+            if (msgData && msgData[2]) chatMsg = `@${msgData[2]} §6回复 "${msgData[3].slice(0, 5)}..."§r： ${chatMsg}`;
         }
 
         config.QQ2MC.Chat.export(userName, msg);
-        mc.broadcast(`[§6QQ群§r]${userName} >> ${chatMsg}`);
+        mc.broadcast(`[§6QQ群§r]${userName}§r >> ${chatMsg}`);
         logger.setTitle("QQBot");
         logger.info(`${userName} >> ${chatMsg}`);
         logger.setTitle("Server");
