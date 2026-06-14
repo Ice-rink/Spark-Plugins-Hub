@@ -2,7 +2,6 @@ const config = require('./Config/config.js');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
-const { type } = require('os');
 
 const memoryMap = new Map(); // 记忆缓存
 const tools = config.ai.tools; // 工具定义
