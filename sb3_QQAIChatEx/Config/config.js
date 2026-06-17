@@ -42,7 +42,7 @@ module.exports = {
         // 群聊
         group: {
             enable: true, // 启用
-            keywords: ["兮兮", "服务器"], // 关键词触发
+            keywords: ["兮兮"], // 关键词触发
             at: true, // 仅接收at
             all: false, // 接收所有消息
             data: new Set([ // 响应的群聊
