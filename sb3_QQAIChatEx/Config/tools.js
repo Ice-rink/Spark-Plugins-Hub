@@ -1,41 +1,13 @@
 const axios = require('axios');
-const pendingRequests = new Map();
 
-spark.on('gocq.pack', (pack) => {
-    if (!pack.echo) return;
-    const pending = pendingRequests.get(pack.echo);
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    pending.resolve(pack);
-    pendingRequests.delete(pack.echo);
-});
-
-function request(action, params, timeout = 10000) {
-    return new Promise((resolve, reject) => {
-        const echoId = `${action}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const timer = setTimeout(() => {
-            const pending = pendingRequests.get(echoId);
-            if (pending) {
-                pendingRequests.delete(echoId);
-                reject(new Error(`${action} 请求超时`));
-            }
-        }, timeout);
-        pendingRequests.set(echoId, { resolve, reject, timer });
-        spark.QClient.sendWSPack({
-            action: action,
-            echo: echoId,
-            params: params
-        });
-    });
-}
-
-module.exports = {
-    definition: [
-        {
+const tools = {
+    // 知识库
+    "query_knowledge_data": {
+        definition: {
             type: "function",
             function: {
                 name: "query_knowledge_data",
-                description: "当用户询问服务器规则、技术文档等特定知识时，调用此工具查询相关信息",
+                description: "当用户询问特定知识时，调用此工具查询相关信息，确保关键词简洁，如空返回可再次调用",
                 parameters: {
                     type: "object",
                     properties: {
@@ -48,7 +20,14 @@ module.exports = {
                 }
             }
         },
-        {
+        call: async (chatData, query) => {
+            return await chatData.config.ai.knowledge(query);
+        }
+    },
+
+    // 获取聊天记录
+    "query_chat_data": {
+        definition: {
             type: 'function',
             function: {
                 name: 'query_chat_data',
@@ -72,16 +51,8 @@ module.exports = {
                     required: ["count"]
                 }
             }
-        }
-    ],
-    calls: {
-        // 知识库
-        query_knowledge_data: async (chatData, query) => {
-            return await chatData.config.ai.knowledge(query);
         },
-
-        // 获取聊天记录
-        query_chat_data: async (chatData, count = 10, reverseOrder = false) => {
+        call: async (chatData, count = 10, reverseOrder = false) => {
             count = +count;
             reverseOrder = Boolean(reverseOrder);
 
@@ -135,4 +106,45 @@ module.exports = {
             }
         }
     }
+};
+
+// === 辅助函数 === //
+const pendingRequests = new Map();
+spark.on('gocq.pack', (pack) => {
+    if (!pack.echo) return;
+    const pending = pendingRequests.get(pack.echo);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pending.resolve(pack);
+    pendingRequests.delete(pack.echo);
+});
+
+function request(action, params, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+        const echoId = `${action}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const timer = setTimeout(() => {
+            const pending = pendingRequests.get(echoId);
+            if (pending) {
+                pendingRequests.delete(echoId);
+                reject(new Error(`${action} 请求超时`));
+            }
+        }, timeout);
+        pendingRequests.set(echoId, { resolve, reject, timer });
+        spark.QClient.sendWSPack({
+            action: action,
+            echo: echoId,
+            params: params
+        });
+    });
 }
+
+module.exports = ((tools) => {
+    const result = { definition: [], calls: {} };
+    for (const [name, tool] of Object.entries(tools)) {
+        const def = JSON.parse(JSON.stringify(tool.definition));
+        def.function.name = name;
+        result.definition.push(def);
+        result.calls[name] = tool.call;
+    }
+    return result;
+})(tools);
