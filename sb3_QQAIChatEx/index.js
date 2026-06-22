@@ -19,6 +19,8 @@ spark.on('message.group.normal', async (pack, reply) => {
         && (groupData.data.has(pack.group_id) || groupData.data.has("all"))
     )) return;
 
+    if (groupData.undata.has(pack.group_id)) return;
+
     if (pack.raw_message.startsWith("/aichat "))
         return onCommand(`${pack.group_id}`, pack, reply);
 
@@ -42,6 +44,8 @@ spark.on('message.private.friend', async (pack, reply) => {
     if (!(privateData.enable
         && (privateData.data.has(pack.user_id) || privateData.data.has("all"))
     )) return;
+
+    if (privateData.undata.has(pack.user_id)) return;
 
     if (pack.raw_message.startsWith("/aichat "))
         return onCommand(`target_${pack.user_id}`, pack, reply);

@@ -70,6 +70,10 @@ module.exports = {
                 856868277, // 2
                 464262043, // 4
                 "all"
+            ]),
+            undata: new Set([ // 不响应的群聊
+                759676433,
+                642538983
             ])
         },
 
@@ -79,7 +83,8 @@ module.exports = {
             data: new Set([ // 响应的私信
                 1669044502,
                 "all"
-            ])
+            ]),
+            undata: new Set([]) // 不响应的私信
         }
     },
 
