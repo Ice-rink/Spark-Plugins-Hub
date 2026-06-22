@@ -84,9 +84,22 @@ async function onMessage(chatId, pack, reply) {
                 reply(additionalMsg);
 
             let msgIndex = 0;
-            msg
+            let textToSplit = msg;
+            let codeMap = null;
+
+            if (config.reply.linebreak.codeBlock) {
+                codeMap = new Map();
+                textToSplit = msg.replace(/```[\s\S]*?```/g, (match) => {
+                    const id = `__CODE_${codeMap.size}__`;
+                    codeMap.set(id, match.replace(/```\w*\n|```$/g, ''));
+                    return id;
+                });
+            }
+
+            textToSplit
                 .split(config.reply.linebreak.split)
                 .filter(Boolean)
+                .map(text => codeMap ? text.replace(/__CODE_\d+__/g, m => codeMap.get(m)) : text)
                 .forEach(text => {
                     setTimeout(() => {
                         reply(text)
@@ -98,12 +111,18 @@ async function onMessage(chatId, pack, reply) {
 }
 
 // API 调用
-async function callAPI(uid, data, callback = (() => { }), canAddMemory = true) {
+async function callAPI(uid, data, callback = (() => { }), canAddMemory = true, is_fullback = false) {
     if (canAddMemory) addMemory(uid, 'user', data);
+
+    const fallbackConfig = {
+        name: is_fullback ? config.ai.fallback.name : config.ai.name,
+        url: is_fullback ? config.ai.fallback.url : config.ai.url,
+        key: is_fullback ? config.ai.fallback.key : config.ai.key
+    };
 
     try {
         const sendData = {
-            model: config.ai.name,
+            model: fallbackConfig.name,
             max_tokens: config.ai.maxTokens,
             temperature: config.ai.temperature,
             stream: false,
@@ -117,9 +136,9 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true) {
 
         if (config.debug) logger.warn("QQ -> AI:\n" + JSON.stringify(sendData, null, 4));
 
-        const response = await axios.post(config.ai.url, sendData, {
+        const response = await axios.post(fallbackConfig.url, sendData, {
             headers: {
-                'Authorization': `Bearer ${config.ai.key}`,
+                'Authorization': `Bearer ${fallbackConfig.key}`,
                 'Content-Type': 'application/json'
             },
             timeout: 30000
@@ -187,10 +206,11 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true) {
         }
     } catch (e) {
         logger.error('API 调用失败: ' + e);
+        if (!is_fullback)
+            return callAPI(uid, data, callback, true, true);
         callback(`这道题有点难呢...我们等下再来学习吧!  ${e.message}`, null);
     }
 }
-
 
 // ==== 记忆管理相关 ==== //
 
@@ -212,18 +232,19 @@ function getMemory(uid) {
 
     // 合并连续的 user 消息（核心逻辑）
     const merged = memory.reduce((acc, msg) => {
-        if (msg.role === 'user' && acc.length && acc[acc.length-1].role === 'user') {
-            acc[acc.length-1].content += '\n' + msg.content;
+        if (msg.role === 'user' && acc.length && acc[acc.length - 1].role === 'user') {
+            acc[acc.length - 1].content += '\n' + msg.content;
         } else {
             acc.push({ ...msg });
         }
         return acc;
     }, []);
-    
+
     memoryMap.set(uid, merged);
     return merged;
 }
 
+// 添加记忆
 // 添加记忆
 function addMemory(uid, role, content, tool_calls = null, tool_call_id = null) {
     let memory = getMemory(uid);
@@ -238,10 +259,10 @@ function addMemory(uid, role, content, tool_calls = null, tool_call_id = null) {
 
     memory.push(message);
 
-    // 超出时备份
-    if (memory.length > config.memory_length) {
-        if (config.memory_bak) {
-            const removed = memory.slice(0, memory.length - config.memory_length);
+    // 超出时备份并裁剪
+    if (memory.length > config.memory.length) {
+        if (config.memory.bak) {
+            const removed = memory.slice(0, memory.length - config.memory.length);
             const bakPath = path.join(memoryBakDir, `${uid}.json`);
             let bak = [];
             if (fs.existsSync(bakPath)) bak = JSON.parse(fs.readFileSync(bakPath, 'utf8'));
@@ -249,7 +270,8 @@ function addMemory(uid, role, content, tool_calls = null, tool_call_id = null) {
             fs.writeFileSync(bakPath, JSON.stringify(bak, null, 2));
         }
 
-        memory = memory.slice(-config.memory_length);
+        // 安全裁剪：确保不拆散 tool_calls 配对
+        memory = safeSlice(memory, config.memory.length);
         memoryMap.set(uid, memory);
     }
 
@@ -257,6 +279,43 @@ function addMemory(uid, role, content, tool_calls = null, tool_call_id = null) {
     fs.writeFile(filePath, JSON.stringify(memory, null, 2), () => { });
 
     return memory;
+}
+
+// 安全裁剪：保持消息完整性
+function safeSlice(memory, maxLength) {
+    // 从后往前保留，确保工具调用对不被拆散
+    const keep = memory.slice(-maxLength);
+
+    // 检查第一条保留的消息是否是孤立的 tool 消息
+    if (keep.length > 0 && keep[0].role === 'tool' && keep[0].tool_call_id) {
+        // 向前查找对应的 assistant 消息
+        const startIndex = memory.length - maxLength;
+        for (let i = startIndex - 1; i >= 0; i--) {
+            if (memory[i].role === 'assistant' &&
+                memory[i].tool_calls?.some(tc => tc.id === keep[0].tool_call_id)) {
+                // 找到了，把这对一起保留
+                const realKeep = memory.slice(i);
+                return realKeep.slice(-maxLength - 1); // 多保留一条，确保不超过限制太多
+            }
+        }
+        // 找不到配对的 assistant，移除这个孤立的 tool 消息
+        return keep.slice(1);
+    }
+
+    // 检查最后一条移除的消息是否是带 tool_calls 的 assistant
+    if (memory.length > maxLength) {
+        const removedAssistant = memory[memory.length - maxLength - 1];
+        if (removedAssistant?.role === 'assistant' && removedAssistant.tool_calls) {
+            // 移除 keep 中对应的 tool 消息
+            const toolIds = new Set(removedAssistant.tool_calls.map(tc => tc.id));
+            const filtered = keep.filter(msg =>
+                !(msg.role === 'tool' && toolIds.has(msg.tool_call_id))
+            );
+            return filtered;
+        }
+    }
+
+    return keep;
 }
 
 // === 格式化消息相关 === //
@@ -342,13 +401,12 @@ async function formatMsg(pack, mode = 0) {
                         const replyPack = await spark.QClient.getMsg(t.data.id);
                         return {
                             type: "text",
-                            text: `---引用消息(CQ码)\n${
-                                replyPack.raw_message
-                                    .replace(/&#44;/g, ',')
-                                    .replace(/&amp;/g, '&')
-                                    .replace(/&#91;/g, '[')
-                                    .replace(/&#93;/g, ']')
-                            }\n---`
+                            text: `---引用消息(CQ码)\n${replyPack.raw_message
+                                .replace(/&#44;/g, ',')
+                                .replace(/&amp;/g, '&')
+                                .replace(/&#91;/g, '[')
+                                .replace(/&#93;/g, ']')
+                                }\n---`
                         }
                     }
                     default:
@@ -361,7 +419,7 @@ async function formatMsg(pack, mode = 0) {
             msg = [
                 {
                     type: "text",
-                    text: `[${new Date().toLocaleString('zh-CN', { hour12: false })}][${name}(${qid})] >> `
+                    text: ` [${new Date().toLocaleString('zh-CN', { hour12: false })}][${name}(${qid})] >> `
                 },
                 ...msg
             ]
@@ -388,4 +446,48 @@ async function getUserName(groupId, userId) {
     } catch (e) {
         return `${userId}`;
     }
+}
+
+// === 对话压缩 === //
+
+// 简单压缩：移除工具调用对
+function simpleCompress(uid) {
+    const memory = getMemory(uid);
+    if (!memory || memory.length === 0) return memory;
+
+    const compressed = [];
+    const toRemoveIds = new Set();
+
+    // 标记所有需要移除的 tool_call_id
+    for (let i = 0; i < memory.length; i++) {
+        const msg = memory[i];
+        if (msg.role === 'assistant' && msg.tool_calls) {
+            // 标记该助手消息本身
+            toRemoveIds.add(i);
+            // 标记对应的 tool 消息
+            for (const toolCall of msg.tool_calls) {
+                for (let j = i + 1; j < memory.length; j++) {
+                    if (memory[j].role === 'tool' && memory[j].tool_call_id === toolCall.id) {
+                        toRemoveIds.add(j);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 构建压缩后的记忆
+    for (let i = 0; i < memory.length; i++) {
+        if (!toRemoveIds.has(i)) {
+            compressed.push(memory[i]);
+        }
+    }
+
+    // 更新记忆
+    memoryMap.set(uid, compressed);
+    const filePath = path.join(memoryDir, `${uid}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(compressed, null, 2));
+
+    logger.info(`[压缩] 简单压缩完成: ${memory.length} -> ${compressed.length} 条消息`);
+    return compressed;
 }
