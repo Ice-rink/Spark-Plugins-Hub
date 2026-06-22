@@ -19,7 +19,7 @@ const tools = {
                             description: "动作内部数据，JSON对象格式",
                         },
                     },
-                    required: ["qq", "params"]
+                    required: ["action", "params"]
                 }
             }
         },
