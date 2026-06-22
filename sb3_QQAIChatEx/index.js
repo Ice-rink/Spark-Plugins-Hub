@@ -217,6 +217,21 @@ async function onMessage(chatId, pack, reply) {
     });
 }
 
+// === 其他插件注册工具 === //
+spark.on("core.ready", () => {
+    setTimeout(() => {
+        spark.emit("event.aichat.starts", Date.now())
+    }, 3000)
+})
+
+spark.on("event.aichat.add_tools", (name, tool) => {
+    const { definition, call } = tool;
+
+    definition.function.name = name;
+    tools.definition.push(definition);
+    tools.calls[name] = call;
+})
+
 // API 调用
 async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = true, is_fullback = false) {
     if (canAddMemory) addMemory(uid, 'user', data);
