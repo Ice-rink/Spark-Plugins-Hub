@@ -53,13 +53,19 @@ async function onCommand(uid, pack, reply) {
 
     switch (cmd[0]) {
         case "memory": { // 记忆相关
-            if (cmd[1] === "reload")
+            if (cmd[1] === "reload") {
+                reply("缓存已清除")
                 return memoryMap.delete(uid);
+            }
+            if (cmd[1] === "compress") {
+                return reply(await simpleCompress(uid))
+            }
         }
     }
 }
 
 async function onMessage(chatId, pack, reply) {
+    
     callAPI(chatId, (await formatMsg(pack, 0)), (msg, res) => {
         let additionalMsg = "";
 
@@ -206,9 +212,12 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true, i
         }
     } catch (e) {
         logger.error('API 调用失败: ' + e);
-        if (!is_fullback)
-            return callAPI(uid, data, callback, true, true);
-        callback(`这道题有点难呢...我们等下再来学习吧!  ${e.message}`, null);
+        if (!is_fullback) {
+            callback(`主模型响应失败，尝试调用备用模型 ${config.ai.fallback.name}...`, null)
+            return callAPI(uid, data, callback, false, true);
+        }
+            
+        callback(`这道题有点难呢...我们等下再来学习吧!\n${e.message}`, null);
     }
 }
 
@@ -244,7 +253,6 @@ function getMemory(uid) {
     return merged;
 }
 
-// 添加记忆
 // 添加记忆
 function addMemory(uid, role, content, tool_calls = null, tool_call_id = null) {
     let memory = getMemory(uid);
@@ -488,6 +496,5 @@ function simpleCompress(uid) {
     const filePath = path.join(memoryDir, `${uid}.json`);
     fs.writeFileSync(filePath, JSON.stringify(compressed, null, 2));
 
-    logger.info(`[压缩] 简单压缩完成: ${memory.length} -> ${compressed.length} 条消息`);
-    return compressed;
+    return `简单压缩完成: ${memory.length} -> ${compressed.length} 条消息`;
 }
