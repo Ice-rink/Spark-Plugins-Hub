@@ -59,7 +59,7 @@ async function onCommand(uid, pack, reply) {
     switch (cmd[0]) {
         case "memory": { // 记忆相关
             if (cmd[1] === "reload") {
-                reply("缓存已清除");
+                reply("记忆重载...");
                 memoryMap.delete(uid);
             } else if (cmd[1] === "compress") {
                 reply((await simpleCompress(uid)) + "");
@@ -77,7 +77,7 @@ async function onCommand(uid, pack, reply) {
                     uid: uid,
                     pack: pack,
                     config: config
-                }, ...cmd.slice(2))
+                }, ...cmd.slice(2).join(" "))
             );
             reply(toolsData);
             break;
@@ -173,6 +173,8 @@ async function onCommand(uid, pack, reply) {
 
 async function onMessage(chatId, pack, reply) {
     callAPI(chatId, (await formatMsg(pack, 0)), pack, (msg, res) => {
+        if (msg === "" || msg === "[false_chat]") return;
+
         let additionalMsg = "";
 
         // Token 显示
