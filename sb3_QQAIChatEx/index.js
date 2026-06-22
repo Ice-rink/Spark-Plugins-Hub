@@ -54,19 +54,120 @@ async function onCommand(uid, pack, reply) {
     switch (cmd[0]) {
         case "memory": { // 记忆相关
             if (cmd[1] === "reload") {
-                reply("缓存已清除")
-                return memoryMap.delete(uid);
+                reply("缓存已清除");
+                memoryMap.delete(uid);
+            } else if (cmd[1] === "compress") {
+                reply((await simpleCompress(uid)) + "");
+                memoryMap.delete(uid);
             }
-            if (cmd[1] === "compress") {
-                return reply(await simpleCompress(uid))
+            break;
+        }
+
+        case "tool": {
+            if (cmd[1] == null)
+                return reply(Object.keys(tools));
+
+            const toolsData = await Promise.resolve(
+                tools.calls[cmd[1]]({
+                    uid: uid,
+                    pack: pack,
+                    config: config
+                }, ...cmd.slice(2))
+            );
+            reply(toolsData);
+            break;
+        }
+
+        case "config": {
+            if (cmd[1] === "set") {
+                if (cmd.length < 3) {
+                    reply("用法: /aichat config set <路径>=<值>");
+                    break;
+                }
+                try {
+                    const setExpr = cmd.slice(2).join(' ').trim();
+                    const eqIndex = setExpr.indexOf('=');
+                    if (eqIndex === -1) {
+                        reply("格式错误，需要 '=' 分隔");
+                        break;
+                    }
+                    const path = setExpr.substring(0, eqIndex).trim();
+                    const valueStr = setExpr.substring(eqIndex + 1).trim();
+
+                    // 自动类型转换
+                    let value;
+                    try {
+                        value = JSON.parse(valueStr);
+                    } catch {
+                        value = valueStr; // 无法解析则保持字符串
+                    }
+
+                    // 深度设置
+                    const keys = path.split('.');
+                    let obj = config;
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        if (!(keys[i] in obj)) obj[keys[i]] = {};
+                        obj = obj[keys[i]];
+                    }
+                    obj[keys[keys.length - 1]] = value;
+
+                    // 保存配置
+                    const configPath = path.join(__dirname, 'Config/config.js');
+                    const configContent = `module.exports = ${JSON.stringify(config, null, 4)};`;
+                    fs.writeFileSync(configPath, configContent, 'utf8');
+
+                    reply(`✅ 已设置 ${path} = ${JSON.stringify(value)}`);
+                } catch (e) {
+                    reply(`❌ 设置失败: ${e.message}`);
+                }
+            } else if (cmd[1] === "get") {
+                if (cmd.length < 3) {
+                    reply("用法: /aichat config get <路径>");
+                    break;
+                }
+                const path = cmd.slice(2).join('.').trim();
+                const keys = path.split('.');
+                let obj = config;
+                let valid = true;
+
+                for (const key of keys) {
+                    if (obj && typeof obj === 'object' && key in obj) {
+                        obj = obj[key];
+                    } else {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                if (!valid) {
+                    reply(`❌ 路径不存在: ${path}`);
+                    break;
+                }
+
+                // 敏感配置过滤
+                const sensitiveKeys = ['key'];
+                const lastKey = keys[keys.length - 1].toLowerCase();
+                if (sensitiveKeys.some(sk => lastKey.includes(sk))) {
+                    reply(`${path}=***`);
+                } else {
+                    const value = typeof obj === 'object' ? JSON.stringify(obj) : obj;
+                    reply(`${path}=${value}`);
+                }
+            } else {
+                reply("用法: /aichat config <set|get> [参数]");
             }
+            break;
+        }
+
+        case "cmddata": {
+            reply(JSON.stringify(cmd, null, 4));
+            break;
         }
     }
 }
 
 async function onMessage(chatId, pack, reply) {
-    
-    callAPI(chatId, (await formatMsg(pack, 0)), (msg, res) => {
+    callAPI(chatId, (await formatMsg(pack, 0)), pack, (msg, res) => {
         let additionalMsg = "";
 
         // Token 显示
@@ -117,7 +218,7 @@ async function onMessage(chatId, pack, reply) {
 }
 
 // API 调用
-async function callAPI(uid, data, callback = (() => { }), canAddMemory = true, is_fullback = false) {
+async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = true, is_fullback = false) {
     if (canAddMemory) addMemory(uid, 'user', data);
 
     const fallbackConfig = {
@@ -167,6 +268,7 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true, i
             const toolResults = [];
             const chatData = {
                 uid: uid,
+                pack: pack,
                 config: config
                 // 以后想到了再加...
             };
@@ -184,7 +286,7 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true, i
                         toolResult = typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult);
                     } catch (e) {
                         toolResult = `工具执行错误: ${e.message}`;
-                        logger.error(`工具 ${toolName} 执行失败: ${e}`);
+                        logger.error(`[QQAIChatEx] 工具 ${toolName} 执行失败: ${e}`);
                     }
                 } else {
                     toolResult = `未知工具: ${toolName}`;
@@ -202,7 +304,7 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true, i
 
             // 递归调用继续对话（不重复添加用户消息）
             if (message.content) callback(message.content, response);
-            return callAPI(uid, data, callback, false);
+            return callAPI(uid, data, pack, callback, false);
         }
 
         // 处理普通文本回复
@@ -211,12 +313,12 @@ async function callAPI(uid, data, callback = (() => { }), canAddMemory = true, i
             callback(message.content, response);
         }
     } catch (e) {
-        logger.error('API 调用失败: ' + e);
+        logger.error('[QQAIChatEx] API 调用失败: ' + e);
         if (!is_fullback) {
             callback(`主模型响应失败，尝试调用备用模型 ${config.ai.fallback.name}...`, null)
-            return callAPI(uid, data, callback, false, true);
+            return callAPI(uid, data, pack, callback, false, true);
         }
-            
+
         callback(`这道题有点难呢...我们等下再来学习吧!\n${e.message}`, null);
     }
 }
@@ -235,7 +337,7 @@ function getMemory(uid) {
             const content = fs.readFileSync(filePath, 'utf8').trim();
             if (content) memory = JSON.parse(content);
         } catch (e) {
-            logger.error(`读取记忆文件失败: ${filePath}`, e.message);
+            logger.error(`[QQAIChatEx] 读取记忆文件失败: ${filePath}`, e.message);
         }
     }
 
