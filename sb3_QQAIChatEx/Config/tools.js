@@ -1,12 +1,160 @@
 const axios = require('axios');
 
 const tools = {
+    // 发送WS原始数据包
+    "send_ws_pack": {
+        definition: {
+            type: "function",
+            function: {
+                description: "发送NapCat的WS原始数据包，如果你不会用请不要调用，这可能导致程序崩溃",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        action: {
+                            type: "string",
+                            description: "动作",
+                        },
+                        params: {
+                            type: "string",
+                            description: "动作内部数据，JSON对象格式",
+                        },
+                    },
+                    required: ["qq", "params"]
+                }
+            }
+        },
+        call: async (chatData, action, params) => {
+            return await request(action, JSON.parse(params))
+        }
+    },
+
+    // 发送截一截消息
+    "send_poke": {
+        definition: {
+            type: "function",
+            function: {
+                description: "对用户截一截",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        qq: {
+                            type: "string",
+                            description: "对方QQ号",
+                        }
+                    },
+                    required: ["qq"]
+                }
+            }
+        },
+        call: async (chatData, qq) => {
+            let msg = "";
+            if (chatData.uid.startsWith("target_")) {
+                msg = await request('friend_poke', {
+                    user_id: chatData.uid.slice(7)
+                });
+            } else {
+                msg = await request('group_poke', {
+                    group_id: chatData.uid,
+                    user_id: qq
+                });
+            }
+            return msg;
+        }
+    },
+
+    // 查询群聊人员列表
+    "query_group_member_list": {
+        definition: {
+            type: "function",
+            function: {
+                description: "查询当前群聊人员列表",
+                parameters: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            }
+        },
+        call: async (chatData) => {
+            if (chatData.uid.startsWith("target_"))
+                return "当前为私聊环境，无需查询";
+
+            const data = await request("get_group_member_list", {
+                group_id: chatData.uid
+            })
+
+            data = data.data;
+            return data.map((user) => {
+                return {
+                    user_id: user.user_id,
+                    nickname: user.nickname,
+                    card: user.card,
+                    level: user.level,
+                    role: user.role,
+                    title: user.title,
+                    join_time: user.join_time,
+                    last_sent_time: user.last_sent_time,
+                    is_robot: user.is_robot,
+                    shut_up_timestamp: user.shut_up_timestamp
+                }
+            })
+        }
+    },
+
+    // 查询用户信息
+    "query_user_info": {
+        definition: {
+            type: "function",
+            function: {
+                description: "当需要查询用户信息时调用",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        qq: {
+                            type: "string",
+                            description: "被查询者QQ号",
+                        }
+                    },
+                    required: ["qq"]
+                }
+            }
+        },
+        call: async (chatData, qq) => {
+            let data = {};
+
+            if (chatData.uid.startsWith("target_")) {
+                data = await request('get_stranger_info', {
+                    user_id: chatData.uid.slice(7),
+                    no_cache: true
+                });
+            } else {
+                data = await request('get_group_member_info', {
+                    group_id: chatData.uid,
+                    user_id: qq
+                });
+            };
+
+            data = data.data;
+            return {
+                qq: data.uin,
+                name: data.nick,
+                remark: data.remark,
+                sex: data.sex,
+                age: data.age,
+                longNick: data.longNick,
+                qqLevel: data.qqLevel,
+                richTime: data.richTime,
+                birthday: `${data.birthday_year}-${data.birthday_month}-${data.birthday_day}`,
+                address: `${country}-${province}-${city}`
+            }
+        }
+    },
+
     // 知识库
     "query_knowledge_data": {
         definition: {
             type: "function",
             function: {
-                name: "query_knowledge_data",
                 description: "当用户询问特定知识时，调用此工具查询相关信息，确保关键词简洁，如空返回可再次调用",
                 parameters: {
                     type: "object",
@@ -30,7 +178,6 @@ const tools = {
         definition: {
             type: 'function',
             function: {
-                name: 'query_chat_data',
                 description: '获取当前对话的历史消息记录。可以获取最近的消息，支持自定义数量和排序方向。',
                 parameters: {
                     type: 'object',
