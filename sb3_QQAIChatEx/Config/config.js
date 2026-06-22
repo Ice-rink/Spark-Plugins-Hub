@@ -11,6 +11,7 @@ module.exports = {
         name: "agnes-2.0-flash", // 多模态模型名称
         maxTokens: 5000, // token上线
         temperature: 1.3, // 模型温度
+        retry: 5, // 最多重试次数
 
         // 回退模型设置
         fallback: {

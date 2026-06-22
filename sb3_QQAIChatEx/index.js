@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const memoryMap = new Map(); // 记忆缓存
+const retryMap = new Map(); // 重试操作次数
 const tools = config.ai.tools; // 工具定义
 
 const memoryDir = path.join(__dirname, 'memory');
@@ -266,6 +267,8 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
             timeout: 30000
         });
 
+        if (retryMap.has(uid)) retryMap.delete(uid);
+
         if (config.debug) logger.warn("AI -> QQ:\n" + (JSON.stringify(response, (key, value) => {
             if (key === 'request' || key === 'config' || key === 'headers') return undefined;
             if (typeof value === 'bigint') return value.toString();
@@ -329,8 +332,14 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
         }
     } catch (e) {
         logger.error('[QQAIChatEx] API 调用失败: ' + e);
+        const retry = retryMap.get(uid) ?? 0;
+        if (retry < (config.ai.retry ?? 0)) {
+            retryMap.set(uid, retry++);
+            callAPI(`这道题有点难呢！让兮兮再思考一会儿...(${config.ai.retry}/${retry})\n${e.message}`)
+            return callAPI(uid, data, pack, callback, false);
+        }
         if (!is_fullback) {
-            callback(`主模型响应失败，尝试调用备用模型 ${config.ai.fallback.name}...`, null)
+            callback(`这道题太难了！让兮兮去请外援: ${config.ai.fallback.name}...\n${e.message}`, null)
             return callAPI(uid, data, pack, callback, false, true);
         }
 
