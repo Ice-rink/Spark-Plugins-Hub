@@ -348,8 +348,8 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
         logger.error('[QQAIChatEx] API 调用失败: ' + e);
         const retry = retryMap.get(uid) ?? 0;
         if (retry < (config.ai.retry ?? 0)) {
-            retryMap.set(uid, retry++);
-            callAPI(`这道题有点难呢！让兮兮再思考一会儿...(${config.ai.retry}/${retry})\n${e.message}`)
+            retryMap.set(uid, retry + 1);
+            callback(`这道题有点难呢！让兮兮再思考一会儿...(${retry + 1}/${config.ai.retry})\n${e.message}`)
             return callAPI(uid, data, pack, callback, false);
         }
         if (!is_fullback) {
