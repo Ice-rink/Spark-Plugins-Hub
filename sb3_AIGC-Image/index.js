@@ -31,6 +31,8 @@ spark.web.createConfig()
     .register();
 
 spark.on("config.update.AIGC-Image", (key, val) => {
+    if (key === "group" || key === "private")
+        val = val.map(Number);
     config[key] = val;
     configFile.write('config.json', config);
 });
