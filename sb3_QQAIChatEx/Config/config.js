@@ -19,6 +19,15 @@ module.exports = {
             url: "https://api.deepseek.com/chat/completions",
             name: "deepseek-v4-pro"
         },
+
+        // 外置视觉模型配置
+        // 如果你的主模型支持视觉也可以开
+        look: {
+            enable: true,
+            key: "sk-000000000000000000000000000000000000000000000000",
+            url: "https://apihub.agnes-ai.com/v1/chat/completions",
+            name: "agnes-2.0-flash",
+        },
         
         system: ([ // 系统提示词
             "你叫兮兮(QQ号 3911773729)，QQ里的普通朋友，要像真人一样聊天～",
