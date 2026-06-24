@@ -1,11 +1,31 @@
 const fs = require('fs');
 const path = require('path');
-const config = {
-    logFile: "G:\\Server\\logs\\BehaviorLog",
+
+// === 配置相关 === //
+const configFile = spark.getFileHelper('QQGetLog');
+configFile.initFile("config.json", {
+    group: [spark.env.get("main_group")],
+    group_all: true,
     cmd: "/getlog",
-    QQChat: new Set([1029879634, 856868277, 759676433, "all"]),
+    logFile: "G:\\Server\\logs\\BehaviorLog",
     pageSize: 10
-}
+})
+
+// 网页配置
+const config = JSON.parse(configFile.read("config.json"));
+spark.web.createConfig("QQGetLog")
+    .array("group", config.group, "允许的群组")
+    .switch("group_all", config.group_all, "允许所有群组")
+    .text("cmd", config.cmd, "触发指令")
+    .text("logFile", config.logFile, "日志目录")
+    .number("pageSize", config.pageSize, "单页最多允许数")
+    .register();
+
+spark.on("config.update.QQGetLog", (key, val) => {
+    if (key === "group") val = val.map(Number);
+    config[key] = val;
+    configFile.write('config.json', config);
+});
 
 function extractDate(filename) {
     const match = filename.match(/BehaviorLog-(\d{4})-(\d{2})-(\d{2})\.csv$/);
@@ -70,7 +90,7 @@ function fileToBase64(filePath) {
 spark.on('message.group.normal', async (pack, reply) => {
     const textMsg = toTextMsg(pack.message)?.split(" ") || [];
     
-    if (!((config.QQChat.has(pack.group_id) || config.QQChat.has("all"))
+    if (!((config.group_all || config.group.includes(pack.group_id))
         && pack.message.length !== 0
         && textMsg[0] === config.cmd
     )) return;
