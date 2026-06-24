@@ -1,22 +1,47 @@
-const msgbuilder = require('../../handles/msgbuilder');
 const axios = require('axios');
 
-const config = {
-    // QQ群
-    // 输入all匹配使用群
-    QQGroup: new Set([1029879634, 759676433, "all"]),
+// === 配置相关 === //
+const configFile = spark.getFileHelper('AIGC');
+configFile.initFile("config.json", {
+    group: [spark.env.get("main_group")],
+    group_all: false,
+    private: [],
+    private_all: true,
 
-    key: "sk-000000000000000000000000000000000000000000000000", // 请求密钥
-    url: "https://apihub.agnes-ai.com/v1/images/generations", // 请求的ai端点
-    model: "agnes-image-2.1-flash", // 图片生成大模型
-    timeout: 400000 // 等待时长
-};
+    cmd: "/生图 ",
+    url: "https://apihub.agnes-ai.com/v1/images/generations",
+    key: "sk-000000000000000000000000000000000000000000000000",
+    model: "agnes-image-2.1-flash",
+    timeout: 400000
+})
+
+// 网页配置
+const config = JSON.parse(configFile.read("config.json"));
+spark.web.createConfig()
+    .array("group", config.group, "允许的群组")
+    .switch("group_all", config.group_all, "允许所有群组")
+    .array("private", config.private, "允许的私聊")
+    .switch("private_all", config.private_all, "允许所有私聊")
+    .text("cmd", config.cmd, "触发指令 （要带空格！）")
+    
+    .text("url", config.url, "AI 请求端点")
+    .text("key", config.key, "AI 请求密钥")
+    .text("model", config.model, "AI 请求模型名")
+    .number("timeout", config.timeout, "AI 等待超时时间")
+    .register();
+
+spark.on("config.update.AIGC-Image", (key, val) => {
+    config[key] = val;
+    configFile.write('config.json', config);
+});
+
+// === 实际逻辑 === //
 
 // 群聊
 spark.on('message.group.normal', async (pack, reply) => {
-    if (!((config.QQGroup.has("all")
-        || config.QQGroup.has(pack.group_id))
-        && pack.raw_message.startsWith("/生图 ")
+    if (!((config.group_all
+        || config.group.includes(pack.group_id))
+        && pack.raw_message.startsWith(config.cmd)
     )) return;
 
     onMessage(pack, reply);
@@ -24,9 +49,9 @@ spark.on('message.group.normal', async (pack, reply) => {
 
 // 私聊
 spark.on('message.private.friend', (pack, reply) => {
-    if (!((config.QQPrivate.has("all")
-        || config.QQPrivate.has(pack.target_id))
-        && pack.raw_message.startsWith("/生图 ")
+    if (!((config.private_all
+        || config.private.includes(pack.target_id))
+        && pack.raw_message.startsWith(config.cmd)
     )) return;
 
     onMessage(pack, reply);
@@ -39,7 +64,7 @@ async function onMessage(pack, reply) {
     const prompt = (pack.message.map(t => {
         if (t.type === "text")
             return t.data.text;
-    })).join(",").slice(4);
+    })).join(",").slice(config.cmd.length);
 
     // 图片列表
     const images = (pack.message.map(t => {
@@ -106,14 +131,14 @@ async function sendImage(uid, pack, prompt, images = [], reply = null) {
         );
 
         reply([
-            msgbuilder.reply(pack.real_id),
-            msgbuilder.text(" 画完啦～"),
-            msgbuilder.img(res.data.data[0].url)
+            spark.msgbuilder.reply(pack.real_id),
+            spark.msgbuilder.text("画完啦～"),
+            spark.msgbuilder.img(res.data.data[0].url)
         ]);
     } catch (err) {
         reply([
-            msgbuilder.reply(pack.real_id),
-            msgbuilder.text(`画不出来，怎么样都画不出来！>n<\n\n>> ${err}`),
+            spark.msgbuilder.reply(pack.real_id),
+            spark.msgbuilder.text(`画不出来，怎么样都画不出来！>n<\n\n>> ${err}`),
         ]);
     }
 }
