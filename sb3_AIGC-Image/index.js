@@ -89,15 +89,19 @@ spark.on("event.aichat.starts", () => {
                     properties: {
                         prompt: {
                             type: "string",
-                            description: "生图提示词",
+                            description: "生图提示词，尽量详细，提示词不要过长",
                         },
+                        image: {
+                            type: "string",
+                            description: "可选，输入参考图像URL，仅支持一张，如需多张请引导用户使用指令"
+                        }
                     },
                     required: ["prompt"]
                 }
             }
         },
-        call: (chatData, prompt) => {
-            sendImage(chatData.uid, chatData.pack, prompt);
+        call: (chatData, prompt, image = []) => {
+            sendImage(chatData.uid, chatData.pack, prompt, image);
             return "图片生成请求已发送，生成完毕后会自动发送至请求群聊";
         }
     })
