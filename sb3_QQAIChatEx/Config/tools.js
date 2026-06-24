@@ -1,6 +1,75 @@
 const axios = require('axios');
 
 const tools = {
+    // 外置视觉模型
+    "look_image_info": {
+        definition: {
+            type: "function",
+            function: {
+                description: "调用外置视觉模型分析图片内容，一次一张图片",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        url: {
+                            type: "string",
+                            description: "图片url",
+                        },
+                        prompt: {
+                            type: "string",
+                            description: "对视觉模型的提问词，应当明确要求，避免让模型返回过多文字",
+                        },
+                    },
+                    required: ["url", "prompt"]
+                }
+            }
+        },
+        call: async (chatData, url, prompt) => {
+            if (!chatData.config.ai.look.enable)
+                return "视觉模型未启用";
+
+            try {
+                const lookai = chatData.config.ai.look;
+                const data = await axios.post(lookai.url, {
+                    model: lookai.name,
+                    max_tokens: 2000,
+                    temperature: chatData.config.ai.temperature,
+                    stream: false,
+                    messages: [
+                        { role: "system", content: "你是一个专业的图片识别模型" },
+                        {
+                            role: "user", content: [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                },
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: url
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${lookai.key}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000
+                });
+                return data.data.choices ?? JSON.stringify(data, (key, value) => {
+                    if (key === 'request' || key === 'config' || key === 'headers') return undefined;
+                    if (typeof value === 'bigint') return value.toString();
+                    return value;
+                });
+            } catch (e) {
+                return `分析失败，可尝试再次调用此工具，最多可尝试10次\n${e}`;
+            }
+
+        }
+    },
+
     // 发送WS原始数据包
     "send_ws_pack": {
         definition: {

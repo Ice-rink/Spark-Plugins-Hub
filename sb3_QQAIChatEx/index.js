@@ -289,7 +289,7 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
             addMemory(uid, 'assistant', message.content || '', message.tool_calls);
 
             // 执行所有工具调用
-            const toolResults = [];
+            let toolResults = [];
             const chatData = {
                 uid: uid,
                 pack: pack,
@@ -302,11 +302,13 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
                 const toolArgs = JSON.parse(toolCall.function.arguments || '{}');
 
                 // 执行工具
-                let toolResult;
+                let toolResult = null;
                 if (tools.calls[toolName]) {
                     try {
                         const argsArray = Object.values(toolArgs);
-                        toolResult = await Promise.resolve(tools.calls[toolName](chatData, ...argsArray));
+                        toolResult = await Promise.resolve(
+                            tools.calls[toolName](chatData, ...argsArray)
+                        );
                         toolResult = typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult);
                     } catch (e) {
                         toolResult = `工具执行错误: ${e.message}`;
@@ -324,6 +326,7 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
             }
 
             // 添加工具结果到记忆
+            toolResults = toolResults ?? "[null]";
             toolResults.forEach(result => addMemory(uid, result.role, result.content, null, result.tool_call_id));
 
             // 递归调用继续对话（不重复添加用户消息）
@@ -374,7 +377,20 @@ function getMemory(uid) {
     // 合并连续的 user 消息（核心逻辑）
     const merged = memory.reduce((acc, msg) => {
         if (msg.role === 'user' && acc.length && acc[acc.length - 1].role === 'user') {
-            acc[acc.length - 1].content += '\n' + msg.content;
+            // 处理数组或字符串的 content
+            const prevContent = acc[acc.length - 1].content;
+            const currContent = msg.content;
+
+            if (Array.isArray(prevContent) && Array.isArray(currContent)) {
+                // 两个都是数组 → 合并数组
+                acc[acc.length - 1].content = [...prevContent, ...currContent];
+            } else if (typeof prevContent === 'string' && typeof currContent === 'string') {
+                // 两个都是字符串 → 拼接字符串
+                acc[acc.length - 1].content += '\n' + currContent;
+            } else {
+                // 类型不一致 → 都转成字符串拼接（或根据你的需求处理）
+                acc[acc.length - 1].content = String(prevContent) + '\n' + String(currContent);
+            }
         } else {
             acc.push({ ...msg });
         }
@@ -460,31 +476,6 @@ function safeSlice(memory, maxLength) {
 
 // === 格式化消息相关 === //
 
-// 合并连续的文本
-function mergeText(messages, mergeFn) {
-    const result = [];
-    let textBuffer = [];
-
-    for (const msg of messages) {
-        if (msg.type === 'text') {
-            // 文本类型：放入缓冲区
-            textBuffer.push(msg);
-        } else {
-            // 非文本类型：先清空缓冲区，再添加当前元素
-            if (textBuffer.length > 0) {
-                result.push(mergeFn(textBuffer));
-                textBuffer = [];
-            }
-            result.push(msg);
-        }
-    }
-
-    // 处理最后可能残留的文本缓冲
-    if (textBuffer.length > 0)
-        result.push(mergeFn(textBuffer));
-    return result;
-}
-
 async function formatMsg(pack, mode = 0) {
     if (mode === 0) { // 输入消息 (QQ -> AI)
         const qid = pack.sender.user_id;
@@ -507,7 +498,7 @@ async function formatMsg(pack, mode = 0) {
                         };
                     }
                     case 'image': {
-                        if (!config.input.type.image) return { type: "text", text: "[image]" };
+                        if (!config.input.type.image) return { type: "text", text: `[type=image,URL=${t.data.url}]` };
                         return {
                             type: "image_url",
                             image_url: {
@@ -517,7 +508,7 @@ async function formatMsg(pack, mode = 0) {
                         };
                     }
                     case 'audio': {
-                        if (!config.input.type.audio) return { type: "text", text: "[audio]" };
+                        if (!config.input.type.audio) return { type: "text", text: `[type=audio,URL=${t.data.url}]` };
                         return {
                             type: "audio_url",
                             audio_url: {
@@ -526,7 +517,7 @@ async function formatMsg(pack, mode = 0) {
                         };
                     }
                     case 'video': {
-                        if (!config.input.type.video) return { type: "text", text: "[video]" };
+                        if (!config.input.type.video) return { type: "text", text: `[type=video,URL=${t.data.url}]` };
                         return {
                             type: "video_url",
                             video_url: {
@@ -576,6 +567,31 @@ async function formatMsg(pack, mode = 0) {
     } else if (mode === 1) { // 输出消息 (AI -> QQ)
 
     }
+}
+
+// 合并连续的文本
+function mergeText(messages, mergeFn) {
+    const result = [];
+    let textBuffer = [];
+
+    for (const msg of messages) {
+        if (msg.type === 'text') {
+            // 文本类型：放入缓冲区
+            textBuffer.push(msg);
+        } else {
+            // 非文本类型：先清空缓冲区，再添加当前元素
+            if (textBuffer.length > 0) {
+                result.push(mergeFn(textBuffer));
+                textBuffer = [];
+            }
+            result.push(msg);
+        }
+    }
+
+    // 处理最后可能残留的文本缓冲
+    if (textBuffer.length > 0)
+        result.push(mergeFn(textBuffer));
+    return result;
 }
 
 // 获取用户名称
