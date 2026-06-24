@@ -6,6 +6,9 @@ const fs = require('fs');
 const memoryMap = new Map(); // 记忆缓存
 const retryMap = new Map(); // 重试操作次数
 const tools = config.ai.tools; // 工具定义
+const toolsIndex = new Map( // 工具参数索引
+    tools.definition.map(obj => [obj.name, obj.function.parameters])
+);
 
 const memoryDir = path.join(__dirname, 'memory');
 const memoryBakDir = path.join(__dirname, 'memory_bak');
@@ -299,7 +302,9 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
 
             for (const toolCall of message.tool_calls) {
                 const toolName = toolCall.function.name;
-                const toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+                const toolArgs = toolsArgsSorting(
+                    toolsIndex.get(toolName), (toolCall.function.arguments || '{}')
+                );
 
                 // 执行工具
                 let toolResult = null;
@@ -354,6 +359,30 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
 
         callback(`这道题有点难呢...我们等下再来学习吧!\n${e.message}`, null);
     }
+}
+
+// 工具输入参数排序
+function toolsArgsSorting(tool, args) {
+    const order = tool || [];
+    const parsed = typeof args === 'string' ? JSON.parse(args) : args;
+    const result = {};
+    const remaining = {};
+
+    // 先按顺序添加
+    for (const key of order) {
+        if (key in parsed) {
+            result[key] = parsed[key];
+        }
+    }
+
+    // 添加未在顺序表中的
+    for (const key in parsed) {
+        if (!(key in result)) {
+            result[key] = parsed[key];
+        }
+    }
+
+    return result;
 }
 
 // ==== 记忆管理相关 ==== //
