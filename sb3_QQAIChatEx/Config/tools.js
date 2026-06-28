@@ -97,7 +97,7 @@ const tools = {
         definition: {
             type: "function",
             function: {
-                description: "对用户截一截",
+                description: "截一截用户以示友好，通常在信息发送完成后调用",
                 parameters: {
                     type: "object",
                     properties: {
@@ -112,7 +112,8 @@ const tools = {
         },
         call: async (chatData, qq) => {
             let msg = "";
-            if (chatData.uid.startsWith("target_")) {
+
+            if (chatData.is_target) {
                 msg = await request('friend_poke', {
                     user_id: chatData.uid.slice(7)
                 });
@@ -122,6 +123,7 @@ const tools = {
                     user_id: qq
                 });
             }
+
             return msg;
         }
     },
@@ -140,7 +142,7 @@ const tools = {
             }
         },
         call: async (chatData) => {
-            if (chatData.uid.startsWith("target_"))
+            if (chatData.is_target)
                 return "当前为私聊环境，无需查询";
 
             const data = await request("get_group_member_list", {
@@ -170,7 +172,7 @@ const tools = {
         definition: {
             type: "function",
             function: {
-                description: "当需要查询用户信息时调用",
+                description: "需要查询用户信息时调用",
                 parameters: {
                     type: "object",
                     properties: {
@@ -186,7 +188,7 @@ const tools = {
         call: async (chatData, qq) => {
             let data = {};
 
-            if (chatData.uid.startsWith("target_")) {
+            if (chatData.is_target) {
                 data = await request('get_stranger_info', {
                     user_id: chatData.uid.slice(7),
                     no_cache: true
@@ -270,7 +272,7 @@ const tools = {
             try {
                 let msgList = {};
 
-                if (chatData.uid.startsWith("target_")) {
+                if (chatData.is_target) {
                     msgList = await request('get_friend_msg_history', {
                         user_id: chatData.uid.slice(7),
                         message_seq: 0,
