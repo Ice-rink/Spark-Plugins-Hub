@@ -1,9 +1,0 @@
-{
-    "name": "SkyHelp",
-    "version": [1, 0, 0],
-    "author": "光遇助手",
-    "desc": "在QQ群内快速获取光遇信息吧～支持自定义api！",
-    "permission": "key",
-    "priority": "main",
-    "load": true
-}
