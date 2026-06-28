@@ -589,7 +589,10 @@ async function formatMsg(pack, mode = 0) {
                         }
                     }
                     default:
-                        return t;
+                        return {
+                            type: "text",
+                            text: JSON.stringify(t)
+                        }
                 }
             })
         );
