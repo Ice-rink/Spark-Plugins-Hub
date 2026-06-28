@@ -13,7 +13,7 @@ configFile.initFile("config.json", {
 
 // 网页配置
 const config = JSON.parse(configFile.read("config.json"));
-spark.web.createConfig("QQGetLog")
+spark.web.createConfig("QQGetLogs")
     .array("group", config.group, "允许的群组")
     .switch("group_all", config.group_all, "允许所有群组")
     .text("cmd", config.cmd, "触发指令")
@@ -21,7 +21,7 @@ spark.web.createConfig("QQGetLog")
     .number("pageSize", config.pageSize, "单页最多允许数")
     .register();
 
-spark.on("config.update.QQGetLog", (key, val) => {
+spark.on("config.update.QQGetLogs", (key, val) => {
     if (key === "group") val = val.map(Number);
     config[key] = val;
     configFile.write('config.json', config);
