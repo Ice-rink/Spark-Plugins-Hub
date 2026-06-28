@@ -88,17 +88,13 @@ async function onCommand(uid, pack, reply) {
 
         case "config": {
             if (cmd[1] === "set") {
-                if (cmd.length < 3) {
-                    reply("用法: /aichat config set <路径>=<值>");
-                    break;
-                }
+                if (cmd.length < 3) return;
+
                 try {
                     const setExpr = cmd.slice(2).join(' ').trim();
                     const eqIndex = setExpr.indexOf('=');
-                    if (eqIndex === -1) {
-                        reply("格式错误，需要 '=' 分隔");
-                        break;
-                    }
+                    if (eqIndex === -1) return;
+
                     const path = setExpr.substring(0, eqIndex).trim();
                     const valueStr = setExpr.substring(eqIndex + 1).trim();
 
@@ -119,58 +115,47 @@ async function onCommand(uid, pack, reply) {
                     }
                     obj[keys[keys.length - 1]] = value;
 
-                    // 保存配置
-                    const configPath = path.join(__dirname, 'Config/config.js');
-                    const configContent = `module.exports = ${JSON.stringify(config, null, 4)};`;
-                    fs.writeFileSync(configPath, configContent, 'utf8');
-
-                    reply(`✅ 已设置 ${path} = ${JSON.stringify(value)}`);
+                    reply(`>> 临时设置: ${path} = ${JSON.stringify(value)}`);
                 } catch (e) {
-                    reply(`❌ 设置失败: ${e.message}`);
+                    reply(`>> 设置失败: ${e.message}`);
                 }
-            } else if (cmd[1] === "get") {
-                if (cmd.length < 3) {
-                    reply("用法: /aichat config get <路径>");
-                    break;
-                }
+                return;
+            }
+            if (cmd[1] === "get") {
+                if (cmd.length < 3) return;
+
                 const path = cmd.slice(2).join('.').trim();
                 const keys = path.split('.');
                 let obj = config;
                 let valid = true;
+
+                delete obj.ai.key;
+                delete obj.ai.url;
+                delete obj.ai.fallback;
+                delete obj.ai.lookai;
 
                 for (const key of keys) {
                     if (obj && typeof obj === 'object' && key in obj) {
                         obj = obj[key];
                     } else {
                         valid = false;
-                        break;
+                        return;
                     }
                 }
 
                 if (!valid) {
-                    reply(`❌ 路径不存在: ${path}`);
-                    break;
+                    reply(`>> 路径不存在: ${path}`);
+                    return;
                 }
 
-                // 敏感配置过滤
-                const sensitiveKeys = ['key'];
-                const lastKey = keys[keys.length - 1].toLowerCase();
-                if (sensitiveKeys.some(sk => lastKey.includes(sk))) {
-                    reply(`${path}=***`);
-                } else {
-                    const value = typeof obj === 'object' ? JSON.stringify(obj) : obj;
-                    reply(`${path}=${value}`);
-                }
-            } else {
-                reply("用法: /aichat config <set|get> [参数]");
+                const value = typeof obj === 'object' ? JSON.stringify(obj, null, 4) : obj;
+                reply(`${path}=${value}`);
             }
-            break;
+            return;
         }
 
-        case "cmddata": {
-            reply(JSON.stringify(cmd, null, 4));
-            break;
-        }
+        case "cmddata":
+            return reply(JSON.stringify(cmd, null, 4));
     }
 }
 
