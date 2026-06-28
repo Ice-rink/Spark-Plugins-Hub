@@ -56,7 +56,21 @@ spark.on('message.private.friend', async (pack, reply) => {
     onMessage(`target_${pack.user_id}`, pack, reply);
 });
 
+const targetsRegExp = new RegExp((
+    [
+        config.ai.key,
+        config.ai.url,
+        config.ai.lookai.key,
+        config.ai.lookai.url,
+        config.ai.fallback.key,
+        config.ai.fallback.url
+    ]
+        .filter(k => k && k.length > 0)
+        .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+).join('|'), 'g');
+
 async function onCommand(uid, pack, reply) {
+    if (pack.sender.user_id != 1669044502) return;
     const cmd = pack.raw_message.slice(8).split(" ");
 
     switch (cmd[0]) {
@@ -129,11 +143,6 @@ async function onCommand(uid, pack, reply) {
                 let obj = config;
                 let valid = true;
 
-                delete obj.ai.key;
-                delete obj.ai.url;
-                delete obj.ai.fallback;
-                delete obj.ai.lookai;
-
                 for (const key of keys) {
                     if (obj && typeof obj === 'object' && key in obj) {
                         obj = obj[key];
@@ -148,7 +157,13 @@ async function onCommand(uid, pack, reply) {
                     return;
                 }
 
-                const value = typeof obj === 'object' ? JSON.stringify(obj, null, 4) : obj;
+                let value = String(
+                    typeof obj === 'object'
+                        ? JSON.stringify(obj, null, 4)
+                        : obj
+                ) ?? "";
+                value = value.replace(targetsRegExp, '***')
+
                 reply(`${path}=${value}`);
             }
             return;
