@@ -65,6 +65,34 @@ const tools = {
         }
     },
 
+    // 语音合成
+    "send_ai_tts_msg": {
+        definition: {
+            type: "function",
+            function: {
+                description: "合成AI声聊语音消息并发送至当前群聊，不支持私聊，有AI提示",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        text: {
+                            type: "string",
+                            description: "要合成的文本",
+                        }
+                    },
+                    required: ["text"]
+                }
+            }
+        },
+        call: async (chatData, text) => {
+            if (chatData.is_target) return "私聊场景下无法调用该工具";
+            return await request("send_group_ai_record", {
+                character: "lucy-voice-f38",
+                group_id: chatData.uid,
+                text: text
+            })
+        }
+    },
+
     // 发送WS原始数据包
     "send_ws_pack": {
         definition: {
