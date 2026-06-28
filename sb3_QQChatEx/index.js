@@ -38,6 +38,13 @@ const config = {
         }
     },
 
+    // 导出工具给大模型使用
+    AITools: {
+        enable: true, // 是否启用
+        chat: true, // 聊天记录
+        system: true, // 进出信息
+    },
+
     // 敏感词过滤
     WordFilter: {
         enable: true, // 是否启用
@@ -66,6 +73,44 @@ const config = {
     }
 }
 
+// AI工具调用
+const aiMsgList = [];
+spark.on("event.aichat.starts", () => {
+    spark.emit("event.aichat.add_tools", "get_qyserver_chat_info", {
+        definition: {
+            type: "function",
+            function: {
+                description: "获取服务器内聊天信息",
+                parameters: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            }
+        },
+        call: () => aiMsgList.join("\n")
+    });
+
+    spark.emit("event.aichat.add_tools", "get_qyserver_info", {
+        definition: {
+            type: "function",
+            function: {
+                description: "获取服务器当前实时信息，比如人数/游戏天数等内容",
+                parameters: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                }
+            }
+        },
+        call: () => [
+            `${mc.runcmdEx("list").output}`,
+            `版本：${mc.getBDSVersion()}(${mc.getServerProtocolVersion()})`,
+            `游戏时间: ${mc.getTime(2)}天(${mc.getTime(1)}tick)`
+        ].join("\n")
+    });
+});
+
 
 // === MC2QQ === //
 // Chat - 聊天
@@ -77,32 +122,40 @@ if (config.MC2QQ.Chat)
             && config.WordFilter.use.MC
         ) msg = WFilter(msg);
 
-        spark.QClient.sendGroupMsg(config.QQChat, `[${{ 0: "主世界", 1: "下界", 2: "末地" }[pl.pos.dimid] || "未知"}]`
+        msg = `[${{ 0: "主世界", 1: "下界", 2: "末地" }[pl.pos.dimid] || "未知"}]`
             + `${pl.getDevice()?.avgPing > 100 ? `[${pl.getDevice().avgPing}ms]` : ""}`
-            + `${pl.realName} >> ${msg}`
-        );
+            + `${pl.realName} >> ${msg}`;
+
+        if (config.AITools.enable && config.AITools.chat)
+            aiMsgList.push(`[MC]${msg}`);
+
+        spark.QClient.sendGroupMsg(config.QQChat, msg);
     });
 
 // Join - 加入
 if (config.MC2QQ.Join)
     mc.listen("onJoin", (pl) => {
-        if (!is_reload)
-            spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 进入服务器`)
+        if (is_reload) return;
+        if (config.AITools.enable && config.AITools.system)
+            aiMsgList.push(`[MC]${pl.realName} 进入服务器`);
+        spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 进入服务器`);
     });
 
 // Left - 退出
 if (config.MC2QQ.Left)
     mc.listen("onLeft", (pl) => {
-        if (!is_reload)
-            spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 退出服务器`)
+        if (is_reload) return;
+        if (config.AITools.enable && config.AITools.system)
+            aiMsgList.push(`[MC]${pl.realName} 退出服务器`);
+        spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 退出服务器`);
     });
 
 
 // Say - 广播
 if (config.MC2QQ.Say)
     mc.listen("onConsoleCmd", (cmd) => {
-        if (cmd.startsWith("say "))
-            spark.QClient.sendGroupMsg(config.QQChat, `[服务器娘] ${cmd.slice(4)}`)
+        if (!cmd.startsWith("say ")) return;
+        spark.QClient.sendGroupMsg(config.QQChat, `[服务器娘] ${cmd.slice(4)}`);
     });
 
 ll.exports((msg) => spark.QClient.sendGroupMsg(config.QQChat, `${WFilter(msg)}`), "QQChatEx", "onSendChat");
