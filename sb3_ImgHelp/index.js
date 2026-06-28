@@ -1,0 +1,120 @@
+const path = require('path');
+const fs = require('fs');
+
+const config = {
+    group: [759676433],
+    group_all: true,
+    private: [1669044502],
+    private_all: true,
+
+    mode: 0, // 0: 精准匹配 1: 关键词匹配
+    imgs: {
+        "/光遇 每日任务": "https://api.qmkjcm.cn/api/gy/rwt/images/sc_image.jpg",
+        "/光遇 复刻先祖": "https://api.qmkjcm.cn/api/gy/fk/images/sc_image.jpg",
+        "/光遇 大蜡烛": "https://api.qmkjcm.cn/api/gy/dlz/images/sc_image.jpg",
+        "/光遇 活动": "https://api.qmkjcm.cn/api/gy/ac"
+    }
+};
+
+// 加载本地图片
+const localImages = {};
+const imagesDir = path.join(__dirname, 'images');
+if (fs.existsSync(imagesDir)) {
+    const files = fs.readdirSync(imagesDir);
+    files.forEach(file => {
+        const name = path.parse(file).name; // abc.jpg -> abc
+        const ext = path.extname(file).toLowerCase();
+        if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+            localImages[name] = path.join(imagesDir, file);
+            // 同时添加到 imgs 供匹配
+            config.imgs[`${name}`] = path.join(imagesDir, file);
+        }
+    });
+    logger.info(`加载了 ${Object.keys(localImages).length} 张本地图片`);
+} else fs.mkdirSync(imagesDir, { recursive: true });
+
+// 群聊
+spark.on('message.group.normal', (pack, reply) => {
+    if (!(config.group_all || config.group.includes(pack.group_id))) return;
+    onMessage(pack.raw_message?.trim() || '', reply);
+});
+
+// 私聊
+spark.on('message.private.friend', (pack, reply) => {
+    if (!(config.private_all || config.private.includes(pack.user_id))) return;
+    onMessage(pack.raw_message?.trim() || '', reply);
+});
+
+// AI工具调用
+spark.on("event.aichat.starts", () => {
+    // 合并所有可用图片命令
+    const allCmds = [...Object.keys(config.imgs), ...Object.keys(localImages).map(k => `/${k}`)];
+
+    spark.emit("event.aichat.add_tools", "send_presupposition_image", {
+        definition: {
+            type: "function",
+            function: {
+                name: "send_image",
+                description: "向用户发送预设图片",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        image: {
+                            type: "string",
+                            description: "图片预设词",
+                            enum: allCmds
+                        }
+                    },
+                    required: ["image"]
+                }
+            }
+        },
+        call: async (chatData, image) => {
+            return await onMessage(image, (...msg) => {
+                if (chatData.is_target)
+                    return spark.QClient.sendPrivateMsg(chatData.uid.slice(7), ...msg);
+                else
+                    return spark.QClient.sendGroupMsg(chatData.uid, ...msg);
+            }) ?? "";
+        }
+    });
+});
+
+async function onMessage(rawMsg, reply) {
+    if (!rawMsg) return "rawMsg is null";
+
+    let imageUrls = [];
+    if (config.mode === 0) { // 精准匹配
+        if (config.imgs[rawMsg] != null) {
+            imageUrls = [config.imgs[rawMsg]];
+        }
+    } else { // 关键词匹配
+        imageUrls = getImagesByKeyword(rawMsg);
+    }
+
+    if (imageUrls.length === 0) return "url length is 0";
+
+    for (const url of imageUrls) {
+        try {
+            await reply(spark.msgbuilder.img(url));
+            await sleep(300);
+        } catch (error) {
+            logger.error(`发送图片失败: ${error.message}`);
+        }
+    }
+    return "图片已发送";
+}
+
+function getImagesByKeyword(text) {
+    const results = [];
+    for (const [key, value] of Object.entries(config.imgs)) {
+        if (text.includes(key)) {
+            results.push(value);
+        }
+    }
+    return results;
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
