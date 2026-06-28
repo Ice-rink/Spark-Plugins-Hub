@@ -2,7 +2,7 @@
     "name": "ImgHelp",
     "version": [1, 0, 0],
     "author": "图片发送助手",
-    "desc": "在QQ内快捷发送图片吧～支持自定义api！",
+    "desc": "在QQ内快捷发送图片吧～支持自定义api！支持导出工具给AI！",
     "permission": "key",
     "priority": "main",
     "load": true
