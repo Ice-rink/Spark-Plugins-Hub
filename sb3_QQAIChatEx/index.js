@@ -87,16 +87,37 @@ async function onCommand(uid, pack, reply) {
 
         case "tool": {
             if (cmd[1] == null)
-                return reply(Object.keys(tools));
+                return reply(JSON.stringify(tools.definition, null, 4));
+            else if (cmd[1] == "_debug") {
+                const toolArgs = toolsArgsSorting(
+                    toolsIndex.get(cmd[2]), (cmd.slice(3).join(" ") || '{}')
+                );
+                const argsArray = Object.values(toolArgs);
+                reply(JSON.stringify(argsArray, null, 4));
+                return;
+            }
 
-            const toolsData = await Promise.resolve(
-                tools.calls[cmd[1]]({
-                    uid: uid,
-                    pack: pack,
-                    config: config
-                }, ...cmd.slice(2).join(" "))
-            );
-            reply(toolsData);
+            try {
+                const toolArgs = toolsArgsSorting(
+                    toolsIndex.get(cmd[1]), (cmd.slice(2).join(" ") || '{}')
+                );
+                const argsArray = Object.values(toolArgs);
+                const toolsData = await tools.calls[cmd[1]](
+                    {
+                        uid: uid,
+                        pack: pack,
+                        config: config,
+                        is_target: uid.startsWith("target_")
+                    }, ...argsArray
+                );
+
+                reply((typeof toolsData === 'string'
+                    ? toolsData
+                    : JSON.stringify(toolsData)
+                ));
+            } catch (e) {
+                reply(`工具执行错误: ${e.message}`);
+            }
             break;
         }
 
