@@ -22,7 +22,7 @@ module.exports = {
 
         // 外置视觉模型配置
         // 如果你的主模型支持视觉也可以开
-        look: {
+        lookai: {
             enable: true,
             key: "sk-000000000000000000000000000000000000000000000000",
             url: "https://apihub.agnes-ai.com/v1/chat/completions",

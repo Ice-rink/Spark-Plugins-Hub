@@ -24,18 +24,14 @@ const tools = {
             }
         },
         call: async (chatData, url, prompt) => {
-            if (!chatData.config.ai.look.enable)
+            if (!chatData.config.ai.lookai.enable)
                 return "视觉模型未启用";
 
             try {
-                const lookai = chatData.config.ai.look;
+                const lookai = chatData.config.ai.lookai;
                 const data = await axios.post(lookai.url, {
                     model: lookai.name,
-                    max_tokens: 2000,
-                    temperature: chatData.config.ai.temperature,
-                    stream: false,
                     messages: [
-                        { role: "system", content: "你是一个专业的图片识别模型" },
                         {
                             role: "user", content: [
                                 {
@@ -66,7 +62,6 @@ const tools = {
             } catch (e) {
                 return `分析失败，可尝试再次调用此工具，最多可尝试10次\n${e}`;
             }
-
         }
     },
 
