@@ -70,7 +70,7 @@ const targetsRegExp = new RegExp((
 ).join('|'), 'g');
 
 async function onCommand(uid, pack, reply) {
-    if (pack.sender.user_id != 1669044502) return;
+    if (!config.admin.includes(pack.sender.user_id)) return;
     const cmd = pack.raw_message.slice(8).split(" ");
 
     switch (cmd[0]) {
@@ -190,8 +190,22 @@ async function onCommand(uid, pack, reply) {
             return;
         }
 
-        case "cmddata":
-            return reply(JSON.stringify(cmd, null, 4));
+        case "help":
+            return reply([
+                "/aichat <mode> <...data>",
+                "",
+                "- memory     # 记忆相关",
+                "    - reload",
+                "    - compress",
+                "",
+                "- tool       # 手动调用工具",
+                "    - _debug < tool name > <data: json>",
+                "    - <tool name> <data: json>",
+                "",
+                "- config     # 热更改临时配置",
+                "    - set <cfg>=<data>",
+                "    - get <cfg>",
+            ].join("\n"));
     }
 }
 

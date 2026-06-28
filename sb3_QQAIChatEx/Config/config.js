@@ -3,6 +3,7 @@ const tools = require("./tools.js");
 
 module.exports = {
     debug: false,
+    admin: [1669044502], // 可以使用aichat指令的人
 
     // === AI设置 === //
     ai: {
