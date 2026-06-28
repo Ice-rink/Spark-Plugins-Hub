@@ -127,7 +127,7 @@ if (config.MC2QQ.Chat)
             + `${pl.realName} >> ${msg}`;
 
         if (config.AITools.enable && config.AITools.chat)
-            aiMsgList.push(`[MC]${msg}`);
+            aiMsgList.push(`[${new Date().toLocaleString('zh-CN', { hour12: false })}][MC]${msg}`);
 
         spark.QClient.sendGroupMsg(config.QQChat, msg);
     });
@@ -137,7 +137,7 @@ if (config.MC2QQ.Join)
     mc.listen("onJoin", (pl) => {
         if (is_reload) return;
         if (config.AITools.enable && config.AITools.system)
-            aiMsgList.push(`[MC]${pl.realName} 进入服务器`);
+            aiMsgList.push(`[${new Date().toLocaleString('zh-CN', { hour12: false })}][MC]${pl.realName} 进入服务器`);
         spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 进入服务器`);
     });
 
@@ -146,7 +146,7 @@ if (config.MC2QQ.Left)
     mc.listen("onLeft", (pl) => {
         if (is_reload) return;
         if (config.AITools.enable && config.AITools.system)
-            aiMsgList.push(`[MC]${pl.realName} 退出服务器`);
+            aiMsgList.push(`[${new Date().toLocaleString('zh-CN', { hour12: false })}][MC]${pl.realName} 退出服务器`);
         spark.QClient.sendGroupMsg(config.QQChat, `${pl.realName} 退出服务器`);
     });
 
@@ -204,6 +204,8 @@ spark.on('message.group.normal', async (pack, reply) => {
             if (msgData && msgData[2]) chatMsg = `@${msgData[2]} §6回复 "${msgData[3].slice(0, 5)}..."§r： ${chatMsg}`;
         }
 
+        if (config.AITools.enable && config.AITools.chat)
+            aiMsgList.push(`[${new Date().toLocaleString('zh-CN', { hour12: false })}][QQ]${userName} >> ${msg}`);
         config.QQ2MC.Chat.export(userName, msg);
         mc.broadcast(`[§6QQ群§r]${userName}§r >> ${chatMsg}`);
         logger.setTitle("QQBot");
