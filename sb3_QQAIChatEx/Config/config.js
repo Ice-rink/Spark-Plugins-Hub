@@ -12,6 +12,7 @@ module.exports = {
         maxTokens: 5000, // token上线
         temperature: 1.3, // 模型温度
         retry: 5, // 最多重试次数
+        errorMsg: true, // 报错时返回提示给用户
 
         // 回退模型设置
         fallback: {

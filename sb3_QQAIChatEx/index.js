@@ -349,15 +349,15 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
         const retry = retryMap.get(uid) ?? 0;
         if (retry < (config.ai.retry ?? 0)) {
             retryMap.set(uid, retry + 1);
-            callback(`这道题有点难呢！让兮兮再思考一会儿...(${retry + 1}/${config.ai.retry})\n${e.message}`)
+            if (config.ai.errorMsg) callback(`这道题有点难呢！让兮兮再思考一会儿...(${retry + 1}/${config.ai.retry})\n${e.message}`)
             return callAPI(uid, data, pack, callback, false);
         }
         if (!is_fullback) {
-            callback(`这道题太难了！让兮兮去请外援: ${config.ai.fallback.name}...\n${e.message}`, null)
+            if (config.ai.errorMsg) callback(`这道题太难了！让兮兮去请外援: ${config.ai.fallback.name}...\n${e.message}`, null)
             return callAPI(uid, data, pack, callback, false, true);
         }
 
-        callback(`这道题有点难呢...我们等下再来学习吧!\n${e.message}`, null);
+        if (config.ai.errorMsg) callback(`这道题有点难呢...我们等下再来学习吧!\n${e.message}`, null);
     }
 }
 
