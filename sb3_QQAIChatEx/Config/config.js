@@ -60,7 +60,7 @@ module.exports = {
         ].join("\n")),
 
         tools: tools, // 工具调用
-        untools: new Set(["send_ws_pack"]), // 不使用的工具
+        untools: ["send_ws_pack"], // 不使用的工具
         knowledge: knowledge, // 搜索知识库数据
     },
 
@@ -72,27 +72,27 @@ module.exports = {
             keywords: ["兮兮"], // 关键词触发
             at: true, // 仅接收at
             all: false, // 接收所有消息
-            data: new Set([ // 响应的群聊
+            data: [ // 响应的群聊
                 1087355660, // 测试群
                 1029879634, // 1
                 856868277, // 2
                 464262043, // 4
                 "all"
-            ]),
-            undata: new Set([ // 不响应的群聊
+            ],
+            undata: [ // 不响应的群聊
                 759676433,
                 642538983
-            ])
+            ]
         },
 
         // 私信
         private: {
             enable: true, // 启用
-            data: new Set([ // 响应的私信
+            data: [ // 响应的私信
                 1669044502,
                 "all"
-            ]),
-            undata: new Set([]) // 不响应的私信
+            ],
+            undata: [] // 不响应的私信
         }
     },
 

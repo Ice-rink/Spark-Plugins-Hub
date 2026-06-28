@@ -19,10 +19,10 @@ if (!fs.existsSync(memoryBakDir)) fs.mkdirSync(memoryBakDir, { recursive: true }
 const groupData = config.call.group;
 spark.on('message.group.normal', async (pack, reply) => {
     if (!(groupData.enable // 总开关
-        && (groupData.data.has(pack.group_id) || groupData.data.has("all"))
+        && (groupData.data.includes(pack.group_id) || groupData.data.includes("all"))
     )) return;
 
-    if (groupData.undata.has(pack.group_id)) return;
+    if (groupData.undata.includes(pack.group_id)) return;
 
     if (pack.raw_message.startsWith("/aichat "))
         return onCommand(`${pack.group_id}`, pack, reply);
@@ -45,10 +45,10 @@ spark.on('message.group.normal', async (pack, reply) => {
 const privateData = config.call.private;
 spark.on('message.private.friend', async (pack, reply) => {
     if (!(privateData.enable
-        && (privateData.data.has(pack.user_id) || privateData.data.has("all"))
+        && (privateData.data.includes(pack.user_id) || privateData.data.includes("all"))
     )) return;
 
-    if (privateData.undata.has(pack.user_id)) return;
+    if (privateData.undata.includes(pack.user_id)) return;
 
     if (pack.raw_message.startsWith("/aichat "))
         return onCommand(`target_${pack.user_id}`, pack, reply);
@@ -270,7 +270,7 @@ spark.on("core.ready", () => {
 })
 
 spark.on("event.aichat.add_tools", (name, tool) => {
-    if (config.ai.untools.has(name)) return;
+    if (config.ai.untools.includes(name)) return;
     const { definition, call } = tool;
 
     definition.function.name = name;
@@ -433,7 +433,7 @@ function cleanTools(tools, untools) {
 
     // 过滤 definition 数组
     tools.definition = tools.definition.filter(
-        def => !untools.has(def.function.name)
+        def => !untools.includes(def.function.name)
     );
 
     return tools;
