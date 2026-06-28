@@ -57,6 +57,7 @@ module.exports = {
         ].join("\n")),
 
         tools: tools, // 工具调用
+        untools: new Set(["send_ws_pack"]), // 不使用的工具
         knowledge: knowledge, // 搜索知识库数据
     },
 

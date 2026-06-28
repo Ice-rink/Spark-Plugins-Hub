@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const memoryMap = new Map(); // 记忆缓存
 const retryMap = new Map(); // 重试操作次数
-const tools = config.ai.tools; // 工具定义
+const tools = cleanTools(config.ai.tools, config.ai.untools); // 工具定义
 const toolsIndex = new Map( // 工具参数索引
     tools.definition.map(obj => [obj.name, obj.function.parameters])
 );
@@ -235,6 +235,7 @@ spark.on("core.ready", () => {
 })
 
 spark.on("event.aichat.add_tools", (name, tool) => {
+    if (config.ai.untools.has(name)) return;
     const { definition, call } = tool;
 
     definition.function.name = name;
@@ -296,7 +297,8 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
             const chatData = {
                 uid: uid,
                 pack: pack,
-                config: config
+                config: config,
+                is_target: uid.startsWith("target_")
                 // 以后想到了再加...
             };
 
@@ -361,6 +363,8 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
     }
 }
 
+/// ====== 一些工具函数 ====== ///
+
 // 工具输入参数排序
 function toolsArgsSorting(tool, args) {
     const order = tool || [];
@@ -383,6 +387,21 @@ function toolsArgsSorting(tool, args) {
     }
 
     return result;
+}
+
+// 去除一些函数
+function cleanTools(tools, untools) {
+    // 删除 calls 中的属性
+    untools.forEach(name => {
+        delete tools.calls[name];
+    });
+
+    // 过滤 definition 数组
+    tools.definition = tools.definition.filter(
+        def => !untools.has(def.function.name)
+    );
+
+    return tools;
 }
 
 // ==== 记忆管理相关 ==== //
