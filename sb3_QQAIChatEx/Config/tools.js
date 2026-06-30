@@ -52,7 +52,7 @@ const tools = {
                         'Authorization': `Bearer ${lookai.key}`,
                         'Content-Type': 'application/json'
                     },
-                    timeout: 30000
+                    timeout: 100000
                 });
                 return data.data.choices ?? JSON.stringify(data, (key, value) => {
                     if (key === 'request' || key === 'config' || key === 'headers') return undefined;
@@ -239,7 +239,7 @@ const tools = {
                 qqLevel: data.qqLevel,
                 richTime: data.richTime,
                 birthday: `${data.birthday_year}-${data.birthday_month}-${data.birthday_day}`,
-                address: `${country}-${province}-${city}`
+                address: `${data.country}-${data.province}-${data.city}`
             }
         }
     },
