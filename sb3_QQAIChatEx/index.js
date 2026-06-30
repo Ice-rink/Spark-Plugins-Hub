@@ -628,6 +628,12 @@ async function formatMsg(pack, mode = 0) {
                                 }\n---`
                         }
                     }
+                    case 'face': {
+                        return {
+                            type: "text",
+                            text: `[type=face,id=${t?.data?.id},text=${t?.data?.raw?.faceText}]`
+                        }
+                    }
                     default:
                         return {
                             type: "text",
