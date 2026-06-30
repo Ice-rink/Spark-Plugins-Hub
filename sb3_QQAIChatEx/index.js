@@ -314,7 +314,7 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
                 'Authorization': `Bearer ${fallbackConfig.key}`,
                 'Content-Type': 'application/json'
             },
-            timeout: 30000
+            timeout: config.ai.timeout
         });
 
         if (retryMap.has(uid)) retryMap.delete(uid);
