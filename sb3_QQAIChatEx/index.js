@@ -462,24 +462,50 @@ function getMemory(uid) {
         }
     }
 
-    // 合并连续的 user 消息（核心逻辑）
+    // 合并连续的 user 和 assistant 消息（核心逻辑）
     const merged = memory.reduce((acc, msg) => {
-        if (msg.role === 'user' && acc.length && acc[acc.length - 1].role === 'user') {
-            // 处理数组或字符串的 content
-            const prevContent = acc[acc.length - 1].content;
+        const last = acc[acc.length - 1];
+
+        // 合并连续的 user 消息
+        if (msg.role === 'user' && last && last.role === 'user') {
+            const prevContent = last.content;
             const currContent = msg.content;
 
-            if (Array.isArray(prevContent) && Array.isArray(currContent)) {
-                // 两个都是数组 → 合并数组
-                acc[acc.length - 1].content = [...prevContent, ...currContent];
-            } else if (typeof prevContent === 'string' && typeof currContent === 'string') {
-                // 两个都是字符串 → 拼接字符串
-                acc[acc.length - 1].content += '\n' + currContent;
-            } else {
-                // 类型不一致 → 都转成字符串拼接（或根据你的需求处理）
-                acc[acc.length - 1].content = String(prevContent) + '\n' + String(currContent);
+            // 提取所有文本并合并
+            const prevTexts = Array.isArray(prevContent)
+                ? prevContent.filter(item => item.type === 'text').map(item => item.text)
+                : [String(prevContent)];
+
+            const currTexts = Array.isArray(currContent)
+                ? currContent.filter(item => item.type === 'text').map(item => item.text)
+                : [String(currContent)];
+
+            // 合并为单条文本
+            const mergedText = [...prevTexts, ...currTexts].join('\n');
+            last.content = [{ type: 'text', text: mergedText }];
+        }
+        // 合并连续的 assistant 消息
+        else if (msg.role === 'assistant' && last && last.role === 'assistant') {
+            // 合并 content
+            const prevContent = last.content || '';
+            const currContent = msg.content || '';
+            last.content = prevContent + '\n\n' + currContent;
+
+            // 合并 tool_calls
+            if (msg.tool_calls && msg.tool_calls.length > 0) {
+                if (!last.tool_calls) {
+                    last.tool_calls = [];
+                }
+                // 将新的 tool_calls 添加到已有的后面
+                last.tool_calls = [...last.tool_calls, ...msg.tool_calls];
+
+                // 重新索引 tool_calls（可选，保持索引连续）
+                last.tool_calls.forEach((tc, index) => {
+                    tc.index = index;
+                });
             }
-        } else {
+        }
+        else {
             acc.push({ ...msg });
         }
         return acc;
