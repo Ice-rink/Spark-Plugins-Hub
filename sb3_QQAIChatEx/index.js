@@ -81,6 +81,10 @@ async function onCommand(uid, pack, reply) {
             } else if (cmd[1] === "compress") {
                 reply((await simpleCompress(uid)) + "");
                 memoryMap.delete(uid);
+            } else if (cmd[1] === "delete") {
+                memoryMap.delete(uid);
+                fs.unlinkSync(path.join(memoryDir, `${uid}.json`));
+                reply("记忆清理...");
             }
             break;
         }
@@ -197,6 +201,7 @@ async function onCommand(uid, pack, reply) {
                 "- memory     # 记忆相关",
                 "    - reload",
                 "    - compress",
+                "    - delete",
                 "",
                 "- tool       # 手动调用工具",
                 "    - _debug < tool name > <data: json>",
