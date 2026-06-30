@@ -3,23 +3,23 @@ const tools = require("./tools.js");
 
 module.exports = {
     debug: false,
-    admin: [1669044502], // 可以使用aichat指令的人
+    admin: [399844389, 1669044502, 3501147230], // 可以使用aichat指令的人
 
     // === AI设置 === //
     ai: {
-        key: "sk-000000000000000000000000000000000000000000000000", // 请求密钥
-        url: "https://apihub.agnes-ai.com/v1/chat/completions", // 请求的ai端点
-        name: "agnes-2.0-flash", // 多模态模型名称
-        maxTokens: 5000, // token上线
+        key: "sk-00000000000000000000000000000000", // 请求密钥
+        url: "https://api.deepseek.com/chat/completions", // 请求的ai端点
+        name: "deepseek-v4-flash", // 多模态模型名称
+        maxTokens: 50000, // token上线
         temperature: 1.3, // 模型温度
         retry: 5, // 最多重试次数
         errorMsg: true, // 报错时返回提示给用户
 
         // 回退模型设置
         fallback: {
-            key: "sk-00000000000000000000000000000000",
-            url: "https://api.deepseek.com/chat/completions",
-            name: "deepseek-v4-flash"
+            key: "sk-000000000000000000000000000000000000000000000000",
+            url: "https://apihub.agnes-ai.com/v1/chat/completions",
+            name: "agnes-2.0-flash"
         },
 
         // 外置视觉模型配置
