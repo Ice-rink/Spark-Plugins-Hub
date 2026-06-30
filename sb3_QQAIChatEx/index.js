@@ -223,20 +223,20 @@ async function onMessage(chatId, pack, reply) {
         // Token 显示
         const usage = res?.data?.usage;
         if (usage && config.reply.tokenInfo) {
-            const tokenCost = (usage.completion_tokens / 1000000) * 2.8  // 输出2.8元/百万
-                + ((usage?.prompt_cache_hit_tokens || 0) / 1000000) * 0.02 // 命中0.02元/百万
-                + ((usage?.prompt_cache_miss_tokens || usage?.prompt_tokens) / 1000000) * 0.7; // 未命中0.7元/百万
-            additionalMsg = `📊 Token消耗 (预计: ${tokenCost?.toFixed(6)} 元)`
+            additionalMsg = `📊 Token消耗`
                 + `\n  ├─ 输入: ${usage?.prompt_tokens}`
                 + `\n  │ ├─ 命中: ${usage?.prompt_cache_hit_tokens || 0}`
                 + `\n  │ └─ 未命中: ${usage?.prompt_cache_miss_tokens || 0}`
                 + `\n  ├─ 输出: ${usage?.completion_tokens}`
                 + `\n  └─ 总计: ${usage?.total_tokens}`
-                + `\n=================`
+                + `\n=================`;
         };
 
         // 多次回复
         if (config.reply.linebreak.enable) {
+            if (data === null)
+                return reply(msg);
+
             if (additionalMsg)
                 reply(additionalMsg);
 
