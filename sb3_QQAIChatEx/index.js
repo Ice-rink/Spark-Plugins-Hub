@@ -5,6 +5,7 @@ const fs = require('fs');
 
 const memoryMap = new Map(); // 记忆缓存
 const retryMap = new Map(); // 重试操作次数
+const debounceMap = new Map(); // 防抖
 const tools = cleanTools(config.ai.tools, config.ai.untools); // 工具定义
 const toolsIndex = new Map( // 工具参数索引
     tools.definition.map(obj => [obj.name, obj.function.parameters])
@@ -55,6 +56,22 @@ spark.on('message.private.friend', async (pack, reply) => {
 
     onMessage(`target_${pack.user_id}`, pack, reply);
 });
+
+// 其他插件注册工具
+spark.on("core.ready", () => {
+    setTimeout(() => {
+        spark.emit("event.aichat.starts", Date.now())
+    }, 3000)
+})
+
+spark.on("event.aichat.add_tools", (name, tool) => {
+    if (config.ai.untools.includes(name)) return;
+    const { definition, call } = tool;
+
+    definition.function.name = name;
+    tools.definition.push(definition);
+    tools.calls[name] = call;
+})
 
 const targetsRegExp = new RegExp((
     [
@@ -215,6 +232,50 @@ async function onCommand(uid, pack, reply) {
 }
 
 async function onMessage(chatId, pack, reply) {
+    // === 防抖处理 === //
+    if (config.call.debounce.enable) {
+        const ctx = getDebounceContext(chatId);
+        const currentMsg = pack.raw_message || '';
+
+        // 忽略相同内容的消息
+        if (config.call.debounce.ignoreSame && ctx.processing && currentMsg === ctx.lastMsg) {
+            logger.debug(`[Debounce] UID ${chatId} 忽略重复消息: ${currentMsg.substring(0, 30)}...`);
+            return;
+        }
+
+        // 如果有正在处理的消息，加入缓存
+        if (ctx.processing) {
+            // 检查缓存是否已满
+            if (ctx.cache.length >= config.call.debounce.maxCache) {
+                logger.warn(`[Debounce] UID ${chatId} 缓存已满，丢弃最旧消息`);
+                ctx.cache.shift();
+            }
+
+            ctx.cache.push({ pack, reply, raw_message: currentMsg, timestamp: Date.now() });
+            logger.debug(`[Debounce] UID ${chatId} 缓存消息，当前缓存: ${ctx.cache.length}`);
+            return;
+        }
+
+        // 标记为处理中
+        ctx.processing = true;
+        ctx.lastMsg = currentMsg;
+
+        // 设置超时清理
+        if (config.call.debounce.timeout > 0) {
+            ctx.timer = setTimeout(() => {
+                if (ctx.cache.length > 0) {
+                    logger.warn(`[Debounce] UID ${chatId} 超时，强制处理 ${ctx.cache.length} 条缓存`);
+                    while (ctx.cache.length > 0) {
+                        const pending = ctx.cache.shift();
+                        onMessage(chatId, pending.pack, pending.reply);
+                    }
+                }
+                ctx.processing = false;
+                ctx.timer = null;
+            }, config.call.debounce.timeout);
+        }
+    }
+
     callAPI(chatId, (await formatMsg(pack, 0)), pack, (msg, res) => {
         if (msg === "" || msg === "[false_chat]") return;
 
@@ -266,22 +327,6 @@ async function onMessage(chatId, pack, reply) {
         } else reply(additionalMsg + msg);
     });
 }
-
-// === 其他插件注册工具 === //
-spark.on("core.ready", () => {
-    setTimeout(() => {
-        spark.emit("event.aichat.starts", Date.now())
-    }, 3000)
-})
-
-spark.on("event.aichat.add_tools", (name, tool) => {
-    if (config.ai.untools.includes(name)) return;
-    const { definition, call } = tool;
-
-    definition.function.name = name;
-    tools.definition.push(definition);
-    tools.calls[name] = call;
-})
 
 // API 调用
 async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = true, is_fullback = false) {
@@ -385,6 +430,19 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
         if (message.content) {
             addMemory(uid, 'assistant', message.content);
             callback(message.content, response);
+
+            // 重置防抖
+            if (config.call.debounce.enable) {
+                const ctx = getDebounceContext(uid);
+                ctx.processing = false;
+                if (ctx.timer) {
+                    clearTimeout(ctx.timer);
+                    ctx.timer = null;
+                }
+                // 处理缓存中的下一条消息
+                if (ctx.cache.length > 0)
+                    processDebounceCache(uid, pack, callback);
+            }
         }
     } catch (e) {
         logger.error('[QQAIChatEx] API 调用失败: ' + e);
@@ -399,11 +457,75 @@ async function callAPI(uid, data, pack, callback = (() => { }), canAddMemory = t
             return callAPI(uid, data, pack, callback, false, true);
         }
 
+        // 重置防抖
+        if (config.call.debounce.enable) {
+            const ctx = getDebounceContext(uid);
+            ctx.processing = false;
+            if (ctx.timer) {
+                clearTimeout(ctx.timer);
+                ctx.timer = null;
+            }
+            // 处理缓存中的下一条消息
+            if (ctx.cache.length > 0)
+                processDebounceCache(uid, pack, callback);
+
+        }
+
         if (config.ai.errorMsg) callback(`这道题有点难呢...我们等下再来学习吧!\n${e.message}`, null);
     }
 }
 
 /// ====== 一些工具函数 ====== ///
+
+// === 防抖模块 === //
+function getDebounceContext(uid) {
+    if (!debounceMap.has(uid)) {
+        debounceMap.set(uid, {
+            timer: null,
+            cache: [],
+            processing: false,
+            lastMsg: ''
+        });
+    }
+    return debounceMap.get(uid);
+}
+
+function processDebounceCache(uid, pack, reply) {
+    const ctx = getDebounceContext(uid);
+    if (ctx.timer) {
+        clearTimeout(ctx.timer);
+        ctx.timer = null;
+    }
+
+    if (ctx.cache.length === 0) {
+        ctx.processing = false;
+        return;
+    }
+
+    // 取出最早的一条缓存消息
+    const cached = ctx.cache.shift();
+    ctx.processing = true;
+    ctx.lastMsg = cached.raw_message;
+
+    // 发送缓存消息
+    onMessage(uid, cached.pack, cached.reply);
+
+    // 设置超时清理
+    if (config.call.debounce.timeout > 0) {
+        ctx.timer = setTimeout(() => {
+            if (ctx.cache.length > 0) {
+                if (config.debug)
+                    logger.warn(`UID ${uid} 超时，强制处理 ${ctx.cache.length} 条缓存`);
+                while (ctx.cache.length > 0) {
+                    const pending = ctx.cache.shift();
+                    onMessage(uid, pending.pack, pending.reply);
+                }
+            }
+            ctx.processing = false;
+            ctx.timer = null;
+        }, config.call.debounce.timeout);
+    }
+}
 
 // 工具输入参数排序
 function toolsArgsSorting(tool, args) {

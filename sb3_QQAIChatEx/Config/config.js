@@ -31,7 +31,7 @@ module.exports = {
             url: "https://apihub.agnes-ai.com/v1/chat/completions",
             name: "agnes-2.0-flash",
         },
-        
+
         system: ([ // 系统提示词
             "你叫兮兮(QQ号 3911773729)，QQ里的普通朋友，要像真人一样聊天～",
             "",
@@ -94,6 +94,14 @@ module.exports = {
                 "all"
             ],
             undata: [] // 不响应的私信
+        },
+
+        // 信息防抖配置
+        debounce: {
+            enable: true, // 是否启用
+            timeout: 5000, // 等待超时时间（毫秒），超时后自动发送缓存消息
+            maxCache: 10, // 最大缓存消息数量
+            ignoreSame: true // 是否忽略相同内容的消息
         }
     },
 
