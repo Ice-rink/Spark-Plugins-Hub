@@ -194,7 +194,7 @@ async function onCommand(uid, pack, reply) {
             return;
         }
 
-        case "help":
+        default:
             return reply([
                 "/aichat <mode> <...data>",
                 "",
@@ -204,12 +204,12 @@ async function onCommand(uid, pack, reply) {
                 "    - delete",
                 "",
                 "- tool       # 手动调用工具",
-                "    - _debug < tool name > <data: json>",
-                "    - <tool name> <data: json>",
+                "    - _debug <tool_name: string> <data: json>",
+                "    - <tool_name: string> <data: json>",
                 "",
                 "- config     # 热更改临时配置",
-                "    - set <cfg>=<data>",
-                "    - get <cfg>",
+                "    - set <cfg: string>=<data>",
+                "    - get <cfg: string>",
             ].join("\n"));
     }
 }
