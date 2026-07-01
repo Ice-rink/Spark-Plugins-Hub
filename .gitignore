@@ -1,16 +1,3 @@
-# 忽略所有层级下的 node_modules 目录
 **/node_modules/
-
-# 忽略打包生成的本地压缩包
-release_files/
 *.zip
-
-# 忽略开发工具配置
-.DS_Store
-.vscode/
-.idea/
-
-# 忽略日志文件
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+QYServer
