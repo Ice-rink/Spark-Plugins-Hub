@@ -180,9 +180,10 @@ spark.on('message.group.normal', async (pack, reply) => {
             || config.QQ2MC.Cmd.player.some(cmd => msg.startsWith(cmd))
         )
     ) {
-        const res = mc.runcmdEx(msg)?.output ?? false;
+        const res = mc.runcmdEx(msg)?.output ?? "";
         if (res === false) return;
-        reply(res);
+        res.match(/.{1,300}/g) || []
+            .forEach(msg => reply(msg));
         logger.setTitle("QQCommand");
         logger.info(`${userName} >> ${msg}\n>> ${res}\n`);
         logger.setTitle("Server");
